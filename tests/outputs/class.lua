@@ -1,5 +1,6 @@
 local Hello
-Hello = (function(_parent_0)
+Hello = (function()
+  local _parent_0 = nil
   local _base_0 = {
     hello = function(self)
       return print(self.test, self.world)
@@ -19,10 +20,10 @@ Hello = (function(_parent_0)
     end
   }, {
     __index = _base_0,
-    __call = function(mt, ...)
-      local self = setmetatable({}, _base_0)
-      mt.__init(self, ...)
-      return self
+    __call = function(cls, ...)
+      local _self_0 = setmetatable({}, _base_0)
+      cls.__init(_self_0, ...)
+      return _self_0
     end
   })
   _base_0.__class = _class_0
@@ -32,7 +33,8 @@ local x = Hello(1, 2)
 x:hello()
 print(x)
 local Simple
-Simple = (function(_parent_0)
+Simple = (function()
+  local _parent_0 = nil
   local _base_0 = {
     cool = function(self)
       return print("cool")
@@ -50,17 +52,18 @@ Simple = (function(_parent_0)
     end
   }, {
     __index = _base_0,
-    __call = function(mt, ...)
-      local self = setmetatable({}, _base_0)
-      mt.__init(self, ...)
-      return self
+    __call = function(cls, ...)
+      local _self_0 = setmetatable({}, _base_0)
+      cls.__init(_self_0, ...)
+      return _self_0
     end
   })
   _base_0.__class = _class_0
   return _class_0
 end)()
 local Yikes
-Yikes = (function(_parent_0)
+Yikes = (function()
+  local _parent_0 = Simple
   local _base_0 = { }
   _base_0.__index = _base_0
   if _parent_0 then
@@ -72,19 +75,20 @@ Yikes = (function(_parent_0)
     end
   }, {
     __index = _base_0,
-    __call = function(mt, ...)
-      local self = setmetatable({}, _base_0)
-      mt.__init(self, ...)
-      return self
+    __call = function(cls, ...)
+      local _self_0 = setmetatable({}, _base_0)
+      cls.__init(_self_0, ...)
+      return _self_0
     end
   })
   _base_0.__class = _class_0
   return _class_0
-end)(Simple)
+end)()
 x = Yikes()
 x:cool()
 local Hi
-Hi = (function(_parent_0)
+Hi = (function()
+  local _parent_0 = nil
   local _base_0 = {
     cool = function(self, num)
       return print("num", num)
@@ -100,16 +104,17 @@ Hi = (function(_parent_0)
     end
   }, {
     __index = _base_0,
-    __call = function(mt, ...)
-      local self = setmetatable({}, _base_0)
-      mt.__init(self, ...)
-      return self
+    __call = function(cls, ...)
+      local _self_0 = setmetatable({}, _base_0)
+      cls.__init(_self_0, ...)
+      return _self_0
     end
   })
   _base_0.__class = _class_0
   return _class_0
 end)()
-Simple = (function(_parent_0)
+Simple = (function()
+  local _parent_0 = Hi
   local _base_0 = {
     cool = function(self)
       return _parent_0.cool(self, 120302)
@@ -125,15 +130,42 @@ Simple = (function(_parent_0)
     end
   }, {
     __index = _base_0,
-    __call = function(mt, ...)
-      local self = setmetatable({}, _base_0)
-      mt.__init(self, ...)
-      return self
+    __call = function(cls, ...)
+      local _self_0 = setmetatable({}, _base_0)
+      cls.__init(_self_0, ...)
+      return _self_0
     end
   })
   _base_0.__class = _class_0
   return _class_0
-end)(Hi)
+end)()
 x = Simple()
 x:cool()
 print(x.__class == Simple)
+local Okay
+Okay = (function()
+  local _parent_0 = nil
+  local _base_0 = {
+    something = 20323
+  }
+  _base_0.__index = _base_0
+  if _parent_0 then
+    setmetatable(_base_0, getmetatable(_parent_0).__index)
+  end
+  local _class_0 = setmetatable({
+    __init = function(self, ...)
+      if _parent_0 then
+        return _parent_0.__init(self, ...)
+      end
+    end
+  }, {
+    __index = _base_0,
+    __call = function(cls, ...)
+      local _self_0 = setmetatable({}, _base_0)
+      cls.__init(_self_0, ...)
+      return _self_0
+    end
+  })
+  _base_0.__class = _class_0
+  return _class_0
+end)()

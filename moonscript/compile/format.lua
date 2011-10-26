@@ -1,8 +1,16 @@
 module("moonscript.compile", package.seeall)
 local util = require("moonscript.util")
 local data = require("moonscript.data")
-local itwos = util.itwos
-local Set, ntype = data.Set, data.ntype
+local Set
+do
+  local _table_0 = require("moonscript.data")
+  Set = _table_0.Set
+end
+local ntype
+do
+  local _table_0 = require("moonscript.types")
+  ntype = _table_0.ntype
+end
 local concat, insert = table.concat, table.insert
 indent_char = "  "
 user_error = function(...)
@@ -72,9 +80,6 @@ has_value = function(node)
 end
 is_non_atomic = function(node)
   return non_atomic[ntype(node)]
-end
-is_slice = function(node)
-  return ntype(node) == "chain" and ntype(node[#node]) == "slice"
 end
 count_lines = function(str)
   local count = 1

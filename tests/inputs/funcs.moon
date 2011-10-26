@@ -43,5 +43,19 @@ what! the! heck!
 
 (x = if something then yeah else no) ->
 
-something = (hello=100, world=(x=[[yeah cool]])-> print "eat balls") ->
+something = (hello=100, world=(x=[[yeah cool]])-> print "eat rice") ->
   print hello
+
+(x, y) =>
+(@x, @y) =>
+(x=1) =>
+(@x=1,y,@z="hello world") =>
+
+
+x -> return
+y -> return 1
+z -> return 1, "hello", "world"
+k -> if yes then return else return
+
+
+

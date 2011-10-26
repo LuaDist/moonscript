@@ -1,21 +1,23 @@
 module "moonscript.compile", package.seeall
 
 util = require "moonscript.util"
-data = require "moonscript.data"
 dump = require "moonscript.dump"
 
 require "moonscript.compile.format"
 require "moonscript.compile.line"
 require "moonscript.compile.value"
 
-import ntype, Set from data
+transform = require "moonscript.transform"
+
+import NameProxy from transform
+import Set from require "moonscript.data"
+import ntype from require "moonscript.types"
+
 import concat, insert from table
 import pos_to_line, get_closest_line, trim from util
 
-export tree, format_error
+export tree, value, format_error
 export Block
-
-bubble_names = { "has_varargs" }
 
 -- buffer for building up a line
 class Line
@@ -49,6 +51,9 @@ class Block_
   header: "do"
   footer: "end"
 
+  export_all: false
+  export_proper: false
+
   new: (@parent, @header, @footer) =>
     @current_line = 1
 
@@ -73,7 +78,14 @@ class Block_
     @_state[name]
 
   declare: (names) =>
-    undeclared = [name for name in *names when type(name) == "string" and not @has_name name]
+    undeclared = for name in *names
+      t = util.moon.type(name)
+      real_name = if t == NameProxy
+        name\get_name self
+      elseif t == "string"
+        name
+      real_name if real_name and not @has_name real_name
+
     @put_name name for name in *undeclared
     undeclared
 
@@ -81,18 +93,20 @@ class Block_
     @_name_whitelist = Set names
 
   put_name: (name) =>
+    name = name\get_name self if util.moon.type(name) == NameProxy
     @_names[name] = true
 
-  has_name: (name) =>
+  has_name: (name, skip_exports) =>
+    if not skip_exports
+      return true if @export_all
+      return true if @export_proper and name\match"^[A-Z]"
+
     yes = @_names[name]
     if yes == nil and @parent
       if not @_name_whitelist or @_name_whitelist[name]
-        @parent\has_name name
+        @parent\has_name name, true
     else
       yes
-
-  shadow_name: (name) =>
-    @_names[name] = false
 
   free_name: (prefix, dont_put) =>
     prefix = prefix or "moon"
@@ -101,7 +115,7 @@ class Block_
     while searching
       name = concat {"", prefix, i}, "_"
       i = i + 1
-      searching = @has_name name
+      searching = @has_name name, true
 
     @put_name name if not dont_put
     name
@@ -148,9 +162,6 @@ class Block_
     if t == "string"
       @add_line_text line
     elseif t == Block
-      for name in *bubble_names
-        self[name] = line.name if line[name]
-
       @add @line line
     elseif t == Line
       @add_line_tables line
@@ -209,6 +220,7 @@ class Block_
   -- line wise compile functions
   name: (node) => @value node
   value: (node, ...) =>
+    node = transform.value node
     action = if type(node) != "table"
       "raw_value"
     else
@@ -225,6 +237,8 @@ class Block_
       \append_list [@value v for v in *values], delim
 
   stm: (node, ...) =>
+    return if not node -- slip blank statements
+    node = transform.stm node
     fn = line_compile[ntype(node)]
     if not fn
       -- coerce value into statement
@@ -236,31 +250,35 @@ class Block_
       @mark_pos node
       out = fn self, node, ...
       @add out if out
+    nil
 
   ret_stms: (stms, ret) =>
     if not ret
       ret = default_return
 
-    -- wow I really need a for loop
-    i = 1
-    while i < #stms
-      @stm stms[i]
-      i = i + 1
+    -- find last exp for explicit return
+    last_exp_id = 0
+    for i = #stms, 1, -1
+      stm = stms[i]
+      if stm and util.moon.type(stm) != transform.Run
+        last_exp_id = i
+        break
 
-    last_exp = stms[i]
-
-    if last_exp
-      if cascading[ntype(last_exp)]
-        @stm last_exp, ret
-      elseif @is_value last_exp
-        line = ret stms[i]
-        if @is_stm line
-          @stm line
+    for i, stm in ipairs stms
+      if i == last_exp_id
+        if cascading[ntype(stm)]
+          @stm stm, ret
+        elseif @is_value stm
+          line = ret stms[i]
+          if @is_stm line
+            @stm line
+          else
+            error "got a value from implicit return"
         else
-          error "got a value from implicit return"
+          -- nothing we can do with a statement except show it
+          @stm stm
       else
-        -- nothing we can do with a statement except show it
-        @stm last_exp
+        @stm stm
 
     nil
 
@@ -286,6 +304,13 @@ format_error = (msg, pos, file_str) ->
     "Compile error: "..msg
     (" [%d] >>    %s")\format line, trim line_str
   }, "\n"
+
+value = (value) ->
+  out = nil
+  with RootBlock!
+    \add \value value
+    out = \render!
+  out
 
 tree = (tree) ->
   scope = RootBlock!

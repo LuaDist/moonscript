@@ -1,14 +1,12 @@
 module "moonscript.compile", package.seeall
 
 util = require "moonscript.util"
-data = require "moonscript.data"
-dump = require "moonscript.dump"
 
 require "moonscript.compile.format"
-require "moonscript.compile.types"
+dump = require "moonscript.dump"
 
 import reversed from util
-import ntype from data
+import ntype from require "moonscript.types"
 import concat, insert from table
 
 export line_compile
@@ -30,22 +28,17 @@ line_compile =
   assign: (node) =>
     _, names, values = unpack node
 
-    -- can we extract single cascading value
-    if #values == 1 and cascading[ntype values[1]]
-      return @stm {"assign", names, values[1]}
-
     undeclared = @declare names
     declare = "local "..concat(undeclared, ", ")
 
-    if @is_stm values
+    -- todo: tree transformation
+    if #values == 1 and @is_stm(values[1]) and cascading[ntype(values[1])]
+      stm = values[1]
       @add declare if #undeclared > 0
-      if cascading[ntype(values)]
-        decorate = (value) ->
-          {"assign", names, {value}}
+      decorate = (value) ->
+        {"assign", names, {value}}
 
-        @stm values, decorate
-      else
-        error "Assigning unsupported statement"
+      @stm stm, decorate
     else
       has_fndef = false
       i = 1
@@ -66,12 +59,12 @@ line_compile =
 
   update: (node) =>
     _, name, op, exp = unpack node
-    op_final = op\match "(.)="
+    op_final = op\match "^(.+)=$"
     error "Unknown op: "..op if not op_final
     @stm {"assign", {name}, {{"exp", name, op_final, exp}}}
 
   return: (node) =>
-    @line "return ", @value node[2]
+    @line "return ", if node[2] != "" then @value node[2]
 
   break: (node) =>
     "break"
@@ -155,42 +148,6 @@ line_compile =
   foreach: (node) =>
     _, names, exp, block = unpack node
 
-    if ntype(exp) == "unpack"
-      iter = exp[2]
-      loop = with @block!
-        items_tmp = \free_name "item", true
-        -- handle unpacked slices directly
-        bounds = if is_slice iter
-          slice = iter[#iter]
-          table.remove iter
-          table.remove slice, 1
-
-          slice[2] = if slice[2] and slice[2] != ""
-            max_tmp = \init_free_var "max", slice[2]
-            {"exp", max_tmp, "<", 0
-              "and", {"length", items_tmp}, "+", max_tmp
-              "or", max_tmp }
-          else
-            {"length", items_tmp}
-
-          slice
-        else
-          {1, {"length", items_tmp}}
-
-        index_tmp = \free_name "index"
-
-        \stm {"assign", {items_tmp}, {iter}}
-
-        block = [s for s in *block]
-        \shadow_name name for name in *names
-        insert block, 1, {"assign", names, {
-          {"chain", items_tmp, {"index", index_tmp}}
-        }}
-
-        \stm {"for", index_tmp, bounds, block }
-
-      return loop
-
     loop = with @line!
       \append "for "
       \append_list [@name name for name in *names], ", "
@@ -201,127 +158,35 @@ line_compile =
 
   export: (node) =>
     _, names = unpack node
-    @declare names
+    if type(names) == "string"
+      if names == "*"
+        @export_all = true
+      elseif names == "^"
+        @export_proper = true
+    else
+      @declare names
     nil
-
-  class: (node) =>
-    _, name, parent_val, tbl = unpack node
-
-    constructor = nil
-    final_properties = {}
-
-    -- organize constructor and everything else
-    for entry in *tbl[2]
-      if entry[1] == constructor_name
-        constructor = entry[2]
-      else
-        insert final_properties, entry
-
-    tbl[2] = final_properties
-
-    -- now create the class's initialization block
-    parent_loc = @free_name "parent", true
-
-    -- synthesize constructor if needed
-    if not constructor
-      constructor = {"fndef", {"..."}, {}, "fat", {
-        {"if", parent_loc, {
-          {"chain", "super", {"call", {"..."}}}
-        }}
-      }}
-
-    smart_node constructor
-
-    -- organize constructor arguments
-    -- extract self arguments
-    self_args = {}
-    get_initializers = (arg) ->
-      if ntype(arg) == "self"
-        arg = arg[2]
-        insert self_args, arg
-      arg
-
-    constructor.args = [get_initializers arg for arg in *constructor.args]
-    constructor.arrow = "fat"
-
-    -- insert self assigning arguments
-    dests = [{"self", name} for name in *self_args]
-    insert constructor.body, 1, {"assign", dests, self_args} if #self_args > 0
-
-    def_scope = with @block!
-      parent_val = @value parent_val if parent_val != ""
-      \put_name parent_loc
-
-      .header = @line "(function(", parent_loc, ")"
-      .footer = @line "end)(", parent_val, ")"
-
-      \set "super", (block, chain) ->
-        calling_name = block\get"current_block"
-        slice = [item for item in *chain[3:]]
-        -- inject self
-        slice[1] = {"call", {"self", unpack slice[1][2]}}
-
-        act = if ntype(calling_name) != "value" then "index" else "dot"
-        {"chain", parent_loc, {act, calling_name}, unpack slice}
-
-      -- the metatable holding all the class methods
-      base_name = \init_free_var "base", tbl
-      \stm {"assign", { {"chain", base_name, {"dot", "__index"}} }, { base_name }}
-
-      -- handle super class if there is one
-      \stm {"if", parent_loc,
-        {{"chain", "setmetatable", {"call",
-        {base_name, {"chain", "getmetatable",
-          {"call", {parent_loc}}, {"dot", "__index"}}}}}}}
-
-      -- the class object that is returned
-      cls = {"table", {
-        {"__init", constructor}
-      }}
-
-      -- the class's meta table, gives us call and access to base methods
-      cls_mt = {"table", {
-        {"__index", base_name}
-        {"__call", {"fndef", {"mt", "..."}, {}, "slim", {
-            {"raw", ("local self = setmetatable({}, %s)")\format(base_name)}
-            {"chain", "mt.__init", {"call", {"self", "..."}}}
-            "self"
-          }}}
-      }}
-
-      cls_name = \init_free_var "class", {
-        "chain", "setmetatable", {"call", {cls, cls_mt}}
-      }
-
-      \stm {"assign"
-        {{"chain", base_name, {"dot", "__class"}}}
-        {cls_name}
-      }
-
-      \stm {"return", cls_name}
-
-    @stm {"declare", {name}}
-    @line name, " = ", def_scope
 
   comprehension: (node, action) =>
     _, exp, clauses = unpack node
 
     if not action
-      action = (exp) -> exp
+      action = (exp) -> {exp}
 
-    statement = action exp
+    current_stms = action exp
     for _, clause in reversed clauses
       t = clause[1]
-      statement = if t == "for"
+      current_stms = if t == "for"
         _, names, iter = unpack clause
-        {"foreach", names, iter, {statement}}
+        {"foreach", names, iter, current_stms}
       elseif t == "when"
         _, cond = unpack clause
-        {"if", cond, {statement}}
+        {"if", cond, current_stms}
       else
         error "Unknown comprehension clause: "..t
+      current_stms = {current_stms}
 
-    @stm statement
+    @stms current_stms
 
 
   with: (node, ret) =>
@@ -332,4 +197,11 @@ line_compile =
       @set "scope_var", var
       \stms block
       \stm ret var if ret
+
+  run: (code) =>
+    code\call self
+    nil
+
+  group: (node) =>
+    @stms node[2]
 

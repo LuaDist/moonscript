@@ -7,7 +7,7 @@ source = {
 
 description = {
 	summary = "A little language that compiles to Lua",
-	homepage = "http://leafo.net/moonscript",
+	homepage = "http://moonscript.org",
 	maintainer = "Leaf Corcoran <leafot@gmail.com>",
 	license = "MIT"
 }
@@ -27,7 +27,8 @@ build = {
 		["moonscript.compile.line"] = "moonscript/compile/line.lua",
 		["moonscript.compile.value"] = "moonscript/compile/value.lua",
 		["moonscript.compile.format"] = "moonscript/compile/format.lua",
-		["moonscript.compile.types"] = "moonscript/compile/types.lua",
+		["moonscript.transform"] = "moonscript/transform.lua",
+		["moonscript.types"] = "moonscript/types.lua",
 		["moonscript.parse"] = "moonscript/parse.lua",
 		["moonscript.dump"] = "moonscript/dump.lua",
 		["moonscript.data"] = "moonscript/data.lua",

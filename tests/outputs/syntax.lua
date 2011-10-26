@@ -91,8 +91,10 @@ x = -hello(world(one(two)))
 local hi = -"herfef"
 x = -(function()
   local _accum_0 = { }
+  local _len_0 = 0
   for x in x do
-    table.insert(_accum_0, x)
+    _len_0 = _len_0 + 1
+    _accum_0[_len_0] = x
   end
   return _accum_0
 end)()
@@ -140,20 +142,19 @@ local j = j - "hello"
 y = y * 2
 y = y / 100
 local m = m % 2
+local hello = hello .. "world"
 x = 0
-do
-  local _item_0 = values
-  for _index_0 = 1, #_item_0 do
-    local v = _item_0[_index_0]
-    _ = ((function()
-      if ntype(v) == "fndef" then
-        x = x + 1
-        return x
-      end
-    end)())
-  end
+local _list_0 = values
+for _index_0 = 1, #_list_0 do
+  local v = _list_0[_index_0]
+  _ = ((function()
+    if ntype(v) == "fndef" then
+      x = x + 1
+      return x
+    end
+  end)())
 end
-local hello = {
+hello = {
   something = world,
   ["if"] = "hello",
   ["else"] = 3434,
@@ -176,7 +177,7 @@ x = hello - world - something
   return print(something)
 end)()
 if something then
-  _ = 3589
+  _ = 03589
 else
   _ = 3434
 end
@@ -187,3 +188,7 @@ elseif "ymmm" then
 else
   _ = okay
 end
+x = notsomething
+y = ifsomething
+local z = x and b
+z = x(andb)

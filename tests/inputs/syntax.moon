@@ -1,4 +1,4 @@
-
+#!/this/is/ignored
 
 a = 1 + 2* 3 / 6
 
@@ -138,7 +138,7 @@ j -= "hello"
 y *= 2
 y /= 100
 m %= 2
-
+hello ..= "world"
 
 x = 0
 (if ntype(v) == "fndef" then x += 1) for v in *values
@@ -184,4 +184,12 @@ elseif "ymmm"
 else
 
   okay
+
+
+-- test names containing keywords
+x = notsomething
+y = ifsomething
+z = x and b
+z = x andb
+
 

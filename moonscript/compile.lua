@@ -1,16 +1,23 @@
 module("moonscript.compile", package.seeall)
 local util = require("moonscript.util")
-local data = require("moonscript.data")
 local dump = require("moonscript.dump")
 require("moonscript.compile.format")
 require("moonscript.compile.line")
 require("moonscript.compile.value")
-local ntype, Set = data.ntype, data.Set
+local transform = require("moonscript.transform")
+local NameProxy = transform.NameProxy
+local Set
+do
+  local _table_0 = require("moonscript.data")
+  Set = _table_0.Set
+end
+local ntype
+do
+  local _table_0 = require("moonscript.types")
+  ntype = _table_0.ntype
+end
 local concat, insert = table.concat, table.insert
 local pos_to_line, get_closest_line, trim = util.pos_to_line, util.get_closest_line, util.trim
-local bubble_names = {
-  "has_varargs"
-}
 local Line
 Line = (function(_parent_0)
   local _base_0 = {
@@ -89,6 +96,8 @@ Block_ = (function(_parent_0)
   local _base_0 = {
     header = "do",
     footer = "end",
+    export_all = false,
+    export_proper = false,
     line_table = function(self)
       return self._posmap
     end,
@@ -101,12 +110,25 @@ Block_ = (function(_parent_0)
     declare = function(self, names)
       local undeclared = (function()
         local _accum_0 = { }
+        local _len_0 = 0
         do
           local _item_0 = names
           for _index_0 = 1, #_item_0 do
             local name = _item_0[_index_0]
-            if type(name) == "string" and not self:has_name(name) then
-              table.insert(_accum_0, name)
+            local t = util.moon.type(name)
+            local real_name
+            if t == NameProxy then
+              real_name = name:get_name(self)
+            elseif t == "string" then
+              real_name = name
+            end
+            local _value_0
+            if real_name and not self:has_name(real_name) then
+              _value_0 = real_name
+            end
+            if _value_0 ~= nil then
+              _len_0 = _len_0 + 1
+              _accum_0[_len_0] = _value_0
             end
           end
         end
@@ -125,20 +147,28 @@ Block_ = (function(_parent_0)
       self._name_whitelist = Set(names)
     end,
     put_name = function(self, name)
+      if util.moon.type(name) == NameProxy then
+        name = name:get_name(self)
+      end
       self._names[name] = true
     end,
-    has_name = function(self, name)
+    has_name = function(self, name, skip_exports)
+      if not skip_exports then
+        if self.export_all then
+          return true
+        end
+        if self.export_proper and name:match("^[A-Z]") then
+          return true
+        end
+      end
       local yes = self._names[name]
       if yes == nil and self.parent then
         if not self._name_whitelist or self._name_whitelist[name] then
-          return self.parent:has_name(name)
+          return self.parent:has_name(name, true)
         end
       else
         return yes
       end
-    end,
-    shadow_name = function(self, name)
-      self._names[name] = false
     end,
     free_name = function(self, prefix, dont_put)
       prefix = prefix or "moon"
@@ -151,7 +181,7 @@ Block_ = (function(_parent_0)
           i
         }, "_")
         i = i + 1
-        searching = self:has_name(name)
+        searching = self:has_name(name, true)
       end
       if not dont_put then
         self:put_name(name)
@@ -215,15 +245,6 @@ Block_ = (function(_parent_0)
       if t == "string" then
         self:add_line_text(line)
       elseif t == Block then
-        do
-          local _item_0 = bubble_names
-          for _index_0 = 1, #_item_0 do
-            local name = _item_0[_index_0]
-            if line[name] then
-              self[name] = line.name
-            end
-          end
-        end
         self:add(self:line(line))
       elseif t == Line then
         self:add_line_tables(line)
@@ -297,6 +318,7 @@ Block_ = (function(_parent_0)
       return self:value(node)
     end,
     value = function(self, node, ...)
+      node = transform.value(node)
       local action
       if type(node) ~= "table" then
         action = "raw_value"
@@ -316,11 +338,13 @@ Block_ = (function(_parent_0)
         local _with_0 = Line()
         _with_0:append_list((function()
           local _accum_0 = { }
+          local _len_0 = 0
           do
             local _item_0 = values
             for _index_0 = 1, #_item_0 do
               local v = _item_0[_index_0]
-              table.insert(_accum_0, self:value(v))
+              _len_0 = _len_0 + 1
+              _accum_0[_len_0] = self:value(v)
             end
           end
           return _accum_0
@@ -329,10 +353,14 @@ Block_ = (function(_parent_0)
       end
     end,
     stm = function(self, node, ...)
+      if not node then
+        return 
+      end
+      node = transform.stm(node)
       local fn = line_compile[ntype(node)]
       if not fn then
         if has_value(node) then
-          return self:stm({
+          self:stm({
             "assign",
             {
               "_"
@@ -342,38 +370,45 @@ Block_ = (function(_parent_0)
             }
           })
         else
-          return self:add(self:value(node))
+          self:add(self:value(node))
         end
       else
         self:mark_pos(node)
         local out = fn(self, node, ...)
         if out then
-          return self:add(out)
+          self:add(out)
         end
       end
+      return nil
     end,
     ret_stms = function(self, stms, ret)
       if not ret then
         ret = default_return
       end
-      local i = 1
-      while i < #stms do
-        self:stm(stms[i])
-        i = i + 1
+      local last_exp_id = 0
+      for i = #stms, 1, -1 do
+        local stm = stms[i]
+        if stm and util.moon.type(stm) ~= transform.Run then
+          last_exp_id = i
+          break
+        end
       end
-      local last_exp = stms[i]
-      if last_exp then
-        if cascading[ntype(last_exp)] then
-          self:stm(last_exp, ret)
-        elseif self:is_value(last_exp) then
-          local line = ret(stms[i])
-          if self:is_stm(line) then
-            self:stm(line)
+      for i, stm in ipairs(stms) do
+        if i == last_exp_id then
+          if cascading[ntype(stm)] then
+            self:stm(stm, ret)
+          elseif self:is_value(stm) then
+            local line = ret(stms[i])
+            if self:is_stm(line) then
+              self:stm(line)
+            else
+              error("got a value from implicit return")
+            end
           else
-            error("got a value from implicit return")
+            self:stm(stm)
           end
         else
-          self:stm(last_exp)
+          self:stm(stm)
         end
       end
       return nil
@@ -464,6 +499,15 @@ format_error = function(msg, pos, file_str)
     "Compile error: " .. msg,
     (" [%d] >>    %s"):format(line, trim(line_str))
   }, "\n")
+end
+value = function(value)
+  local out = nil
+  do
+    local _with_0 = RootBlock()
+    _with_0:add(_with_0:value(value))
+    out = _with_0:render()
+  end
+  return out
 end
 tree = function(tree)
   local scope = RootBlock()

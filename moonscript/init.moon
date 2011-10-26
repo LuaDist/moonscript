@@ -1,8 +1,8 @@
 
 module "moonscript", package.seeall
 
-require "moonscript.parse"
 require "moonscript.compile"
+require "moonscript.parse"
 require "moonscript.util"
 
 import concat, insert from table
@@ -24,6 +24,7 @@ create_moonpath = (package_path) ->
 -- load the chunk function from a file objec:
 moon_chunk = (file, file_path) ->
   text = file\read "*a"
+  if not text then error "Could not read file"
   tree, err = parse.string text
   if not tree
     error "Parse error: " .. err

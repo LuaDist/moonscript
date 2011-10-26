@@ -1,59 +1,39 @@
 module("moonscript.compile", package.seeall)
 local util = require("moonscript.util")
 local data = require("moonscript.data")
-local dump = require("moonscript.dump")
 require("moonscript.compile.format")
-local ntype = data.ntype
+local ntype
+do
+  local _table_0 = require("moonscript.types")
+  ntype = _table_0.ntype
+end
 local concat, insert = table.concat, table.insert
-local create_accumulate_wrapper
-create_accumulate_wrapper = function(block_pos)
-  return function(self, node)
-    do
-      local _with_0 = self:block("(function()", "end)()")
-      local accum_name = _with_0:init_free_var("accum", {
-        "table"
-      })
-      local value_name = _with_0:free_name("value", true)
-      local inner = node[block_pos]
-      inner[#inner] = {
-        "assign",
+local table_append
+table_append = function(name, len, value)
+  return {
+    {
+      "update",
+      len,
+      "+=",
+      1
+    },
+    {
+      "assign",
+      {
         {
-          value_name
-        },
-        {
-          inner[#inner]
-        }
-      }
-      insert(inner, {
-        "if",
-        {
-          "exp",
-          value_name,
-          "~=",
-          "nil"
-        },
-        {
+          "chain",
+          name,
           {
-            "chain",
-            "table.insert",
-            {
-              "call",
-              {
-                accum_name,
-                value_name
-              }
-            }
+            "index",
+            len
           }
         }
-      })
-      _with_0:stm(node)
-      _with_0:stm({
-        "return",
-        accum_name
-      })
-      return _with_0
-    end
-  end
+      },
+      {
+        value
+      }
+    }
+  }
 end
 value_compile = {
   exp = function(self, node)
@@ -68,9 +48,11 @@ value_compile = {
       local _with_0 = self:line()
       _with_0:append_list((function()
         local _accum_0 = { }
+        local _len_0 = 0
         for i, v in ipairs(node) do
           if i > 1 then
-            table.insert(_accum_0, _comp(i, v))
+            _len_0 = _len_0 + 1
+            _accum_0[_len_0] = _comp(i, v)
           end
         end
         return _accum_0
@@ -88,11 +70,13 @@ value_compile = {
       local _with_0 = self:line()
       _with_0:append_list((function()
         local _accum_0 = { }
+        local _len_0 = 0
         do
           local _item_0 = node
           for _index_0 = 2, #_item_0 do
             local v = _item_0[_index_0]
-            table.insert(_accum_0, self:value(v))
+            _len_0 = _len_0 + 1
+            _accum_0[_len_0] = self:value(v)
           end
         end
         return _accum_0
@@ -128,19 +112,10 @@ value_compile = {
       local tmp_name = _with_0:init_free_var("accum", {
         "table"
       })
+      local len_name = _with_0:init_free_var("len", 0)
       local action
       action = function(value)
-        return {
-          "chain",
-          "table.insert",
-          {
-            "call",
-            {
-              tmp_name,
-              value
-            }
-          }
-        }
+        return table_append(tmp_name, len_name, value)
       end
       _with_0:stm(node, action)
       _with_0:stm({
@@ -155,9 +130,6 @@ value_compile = {
       return _with_0
     end
   end,
-  ["for"] = create_accumulate_wrapper(4),
-  foreach = create_accumulate_wrapper(4),
-  ["while"] = create_accumulate_wrapper(3),
   chain = function(self, node)
     local callee = node[2]
     if callee == -1 then
@@ -187,6 +159,13 @@ value_compile = {
         return error("Unknown chain action: " .. t)
       end
     end
+    if ntype(callee) == "self" and node[3] and ntype(node[3]) == "call" then
+      callee[1] = "self_colon"
+    end
+    local callee_value = self:value(callee)
+    if ntype(callee) == "exp" then
+      callee_value = self:line("(", callee_value, ")")
+    end
     local actions
     do
       local _with_0 = self:line()
@@ -199,48 +178,50 @@ value_compile = {
       end
       actions = _with_0
     end
-    if ntype(callee) == "self" and node[3] and ntype(node[3]) == "call" then
-      callee[1] = "self_colon"
-    end
-    local callee_value = self:name(callee)
-    if ntype(callee) == "exp" then
-      callee_value = self:line("(", callee_value, ")")
-    end
     return self:line(callee_value, actions)
   end,
   fndef = function(self, node)
     local _, args, whitelist, arrow, block = unpack(node)
     local default_args = { }
-    local format_names
-    format_names = function(arg)
-      if type(arg) == "string" then
-        return arg
-      else
-        insert(default_args, arg)
-        return arg[1]
-      end
-    end
-    args = (function()
+    local self_args = { }
+    local arg_names = (function()
       local _accum_0 = { }
+      local _len_0 = 0
       do
         local _item_0 = args
         for _index_0 = 1, #_item_0 do
           local arg = _item_0[_index_0]
-          table.insert(_accum_0, format_names(arg))
+          local name, default_value = unpack(arg)
+          if type(name) == "string" then
+            name = name
+          else
+            if name[1] == "self" then
+              insert(self_args, name)
+            end
+            name = name[2]
+          end
+          if default_value then
+            insert(default_args, arg)
+          end
+          local _value_0 = name
+          if _value_0 ~= nil then
+            _len_0 = _len_0 + 1
+            _accum_0[_len_0] = _value_0
+          end
         end
       end
       return _accum_0
     end)()
     if arrow == "fat" then
-      insert(args, 1, "self")
+      insert(arg_names, 1, "self")
     end
     do
-      local _with_0 = self:block("function(" .. concat(args, ", ") .. ")")
+      local _with_0 = self:block()
       if #whitelist > 0 then
         _with_0:whitelist_names(whitelist)
       end
       do
-        local _item_0 = args
+        local _item_0 = arg_names
         for _index_0 = 1, #_item_0 do
           local name = _item_0[_index_0]
           _with_0:put_name(name)
@@ -251,6 +232,9 @@ value_compile = {
         for _index_0 = 1, #_item_0 do
           local default = _item_0[_index_0]
           local name, value = unpack(default)
+          if type(name) == "table" then
+            name = name[2]
+          end
           _with_0:stm({
             'if',
             {
@@ -273,7 +257,46 @@ value_compile = {
           })
         end
       end
+      local self_arg_values = (function()
+        local _accum_0 = { }
+        local _len_0 = 0
+        do
+          local _item_0 = self_args
+          for _index_0 = 1, #_item_0 do
+            local arg = _item_0[_index_0]
+            _len_0 = _len_0 + 1
+            _accum_0[_len_0] = arg[2]
+          end
+        end
+        return _accum_0
+      end)()
+      if #self_args > 0 then
+        _with_0:stm({
+          "assign",
+          self_args,
+          self_arg_values
+        })
+      end
       _with_0:ret_stms(block)
+      if #args > #arg_names then
+        arg_names = (function()
+          local _accum_0 = { }
+          local _len_0 = 0
+          do
+            local _item_0 = args
+            for _index_0 = 1, #_item_0 do
+              local arg = _item_0[_index_0]
+              local _value_0 = arg[1]
+              if _value_0 ~= nil then
+                _len_0 = _len_0 + 1
+                _accum_0[_len_0] = _value_0
+              end
+            end
+          end
+          return _accum_0
+        end)()
+      end
+      _with_0.header = "function(" .. concat(arg_names, ", ") .. ")"
       return _with_0
     end
   end,
@@ -321,6 +344,12 @@ value_compile = {
   end,
   minus = function(self, node)
     return self:line("-", self:value(node[2]))
+  end,
+  temp_name = function(self, node)
+    return node:get_name(self)
+  end,
+  number = function(self, node)
+    return node[2]
   end,
   length = function(self, node)
     return self:line("#", self:value(node[2]))

@@ -1,14 +1,15 @@
-
 module("moonscript.parse", package.seeall)
 
 local util = require"moonscript.util"
 
 require"lpeg"
 
-local dump = require"moonscript.dump"
 local data = require"moonscript.data"
+local types = require"moonscript.types"
 
-local ntype = data.ntype
+local ntype = types.ntype
+
+local dump = util.dump
 local trim = util.trim
 
 local Stack = data.Stack
@@ -25,27 +26,38 @@ end
 local R, S, V, P = lpeg.R, lpeg.S, lpeg.V, lpeg.P
 local C, Ct, Cmt, Cg, Cb, Cc = lpeg.C, lpeg.Ct, lpeg.Cmt, lpeg.Cg, lpeg.Cb, lpeg.Cc
 
-lpeg.setmaxstack(3000)
+lpeg.setmaxstack(10000)
 
-local White = S" \t\n"^0
+local White = S" \t\r\n"^0
 local _Space = S" \t"^0
-local Break = S"\n"
+local Break = P"\r"^-1 * P"\n"
 local Stop = Break + -1
 local Indent = C(S"\t "^0) / count_indent
 
-local Comment = P"--" * (1 - S"\n")^0 * #Stop
+local Comment = P"--" * (1 - S"\r\n")^0 * #Stop
 local Space = _Space * Comment^-1
 local SomeSpace = S" \t"^1 * Comment^-1
 
-local _Name = C(R("az", "AZ", "__") * R("az", "AZ", "09", "__")^0)
+local SpaceBreak = Space * Break
+local EmptyLine = SpaceBreak
+
+local AlphaNum = R("az", "AZ", "09", "__")
+
+local _Name = C(R("az", "AZ", "__") * AlphaNum^0)
 local Name = Space * _Name
-local Num = Space * C(R("09")^1) / tonumber
+
+local Num = P"0x" * R("09", "af", "AF")^1 +
+	R"09"^1 * (P"." * R"09"^1)^-1 * (S"eE" * P"-"^-1 * R"09"^1)^-1
+
+Num = Space * (Num / function(value) return {"number", value} end)
 
 local FactorOp = Space * C(S"+-")
 local TermOp = Space * C(S"*/%^")
 
+local Shebang = P"#!" * P(1 - Stop)^0
+
 local function wrap(fn)
-	local env = getfenv(fi)
+	local env = getfenv(fn)
 
 	return setfenv(fn, setmetatable({}, {
 		__index = function(self, name)
@@ -127,22 +139,29 @@ local build_grammar = wrap(function()
 		end
 	end
 
+	local function push_indent(str, pos, indent)
+		_indent:push(indent)
+		return true
+	end
+
 	local function pop_indent(str, pos)
 		if not _indent:pop() then error("unexpected outdent") end
 		return true
 	end
 
 	local keywords = {}
-	local function key(word)
-		keywords[word] = true
-		return Space * word
+	local function key(chars)
+		keywords[chars] = true
+		return Space * chars * -AlphaNum
 	end
 
 	local function op(word)
+		local patt = Space * C(word)
 		if word:match("^%w*$") then
 			keywords[word] = true
+			patt = patt * -AlphaNum
 		end
-		return Space * C(word)
+		return patt
 	end
 
 	local function sym(chars)
@@ -199,7 +218,9 @@ local build_grammar = wrap(function()
 	local Name = sym"@" * Name / mark"self" + Name + Space * "..." / trim
 
 	local function simple_string(delim, x)
-		return C(symx(delim)) * C((P('\\'..delim) + (1 - S('\n'..delim)))^0) * sym(delim) / mark"string"
+		return C(symx(delim)) * C((P('\\'..delim) +
+			"\\\\" +
+			(1 - S('\r\n'..delim)))^0) * sym(delim) / mark"string"
 	end
 
 	-- wrap if statement if there is a conditional decorator
@@ -229,20 +250,24 @@ local build_grammar = wrap(function()
 		return stm
 	end
 
-	local function wrap_default_arg(name, default)
-		if not default then return name end
-		return {name, default}
-	end
-
 	local function check_lua_string(str, pos, right, left)
 		return #left == #right
 	end
 
+	-- :name in table literal
+	local function self_assign(name)
+		return {name, name}
+	end
+
+	-- can't have P(false) because it causes preceding patterns not to run
+	local Cut = P(function() return false end)
+
 	local g = lpeg.P{
 		File,
-		File = Block + Ct"",
+		File = Shebang^-1 * (Block + Ct""),
 		Block = Ct(Line * (Break^1 * Line)^0),
-		Line = Cmt(Indent, check_indent) * Statement + Space * #Break,
+		CheckIndent = Cmt(Indent, check_indent), -- validates line is in correct indent
+		Line = CheckIndent * Statement + Space * #Break,
 
 		Statement = (Import + While + With + For + ForEach + Return
 			+ ClassDecl + Export + BreakLoop + Ct(ExpList) / flatten_or_mark"explist" * Space) * ((
@@ -251,11 +276,12 @@ local build_grammar = wrap(function()
 				CompInner / mark"comprehension"
 			) * Space)^-1 / wrap_decorator,
 
-		EmptyLine = Space * Break,
-		Body = Space^-1 * Break * EmptyLine^0 * InBlock + Ct(Statement),
+		Body = Space^-1 * Break * EmptyLine^0 * InBlock + Ct(Statement), -- either a statement, or an indented block
 
-		InBlock = #Cmt(Indent, advance_indent) * Block * OutBlock,
-		OutBlock = Cmt("", pop_indent),
+		Advance = #Cmt(Indent, advance_indent), -- Advances the indent, gives back whitespace for CheckIndent
+		PushIndent = Cmt(Indent, push_indent),
+		PopIndent = Cmt("", pop_indent),
+		InBlock = Advance * Block * PopIndent,
 
 		Import = key"import" *  Ct(ImportNameList) * key"from" * Exp / mark"import", 
 		ImportName = (sym"\\" * Ct(Cc":" * Name) + Name),
@@ -265,13 +291,13 @@ local build_grammar = wrap(function()
 
 		BreakLoop = Ct(key"break"/trim),
 
-		Return = key"return" * (ExpListLow/ mark"explist") / mark"return",
+		Return = key"return" * (ExpListLow/mark"explist" + C"") / mark"return",
 
 		With = key"with" * Exp * key"do"^-1 * Body / mark"with",
 
 		If = key"if" * Exp * key"then"^-1 * Body *
-			((Break * Cmt(Indent, check_indent))^-1 * EmptyLine^0 * key"elseif" * Exp * key"then"^-1 * Body / mark"elseif")^0 *
-			((Break * Cmt(Indent, check_indent))^-1 * EmptyLine^0 * key"else" * Body / mark"else")^-1 / mark"if",
+			((Break * CheckIndent)^-1 * EmptyLine^0 * key"elseif" * Exp * key"then"^-1 * Body / mark"elseif")^0 *
+			((Break * CheckIndent)^-1 * EmptyLine^0 * key"else" * Body / mark"else")^-1 / mark"if",
 
 		While = key"while" * Exp * key"do"^-1 * Body / mark"while",
 
@@ -286,8 +312,8 @@ local build_grammar = wrap(function()
 		CompFor = key"for" * Ct(NameList) * key"in" * (sym"*" * Exp / mark"unpack" + Exp) / mark"for",
 		CompClause = CompFor + key"when" * Exp / mark"when",
 
-		Assign = Ct(AssignableList) * sym"=" * (With + If + Ct(TableBlock + ExpListLow)) / mark"assign",
-		Update = Assignable * ((sym"+=" + sym"-=" + sym"*=" + sym"/=" + sym"%=")/trim) * Exp / mark"update",
+		Assign = Ct(AssignableList) * sym"=" * (Ct(With + If) + Ct(TableBlock + ExpListLow)) / mark"assign",
+		Update = Assignable * ((sym"..=" + sym"+=" + sym"-=" + sym"*=" + sym"/=" + sym"%=")/trim) * Exp / mark"update",
 
 		-- we can ignore precedence for now
 		OtherOps = op"or" + op"and" + op"<=" + op">=" + op"~=" + op"!=" + op"==" + op".." + op"<" + op">",
@@ -307,15 +333,14 @@ local build_grammar = wrap(function()
 			ForEach + For + While +
 			sym"-" * -SomeSpace * Exp / mark"minus" +
 			sym"#" * Exp / mark"length" +
-			sym"not" * Exp / mark"not" +
+			key"not" * Exp / mark"not" +
 			TableLit +
 			Comprehension +
-			ColonChain * Ct(ExpList^0) / flatten_func + -- have precedence over open table
 			Assign + Update + FunLit + String +
 			Num,
 
-		ChainValue =
-			((Chain + DotChain + Callable) * Ct(ExpList^0)) / flatten_func,
+		ChainValue = -- a function call or an object access
+			((Chain + DotChain + Callable) * Ct(InvokeArgs^-1)) / flatten_func,
 
 		Value = pos(
 			SimpleValue +
@@ -328,7 +353,7 @@ local build_grammar = wrap(function()
 		SingleString = simple_string("'"),
 		DoubleString = simple_string('"'),
 
-		LuaString = Cg(LuaStringOpen, "string_open") * Cb"string_open" * P"\n"^-1 *
+		LuaString = Cg(LuaStringOpen, "string_open") * Cb"string_open" * Break^-1 *
 			C((1 - Cmt(C(LuaStringClose) * Cb"string_open", check_lua_string))^0) *
 			C(LuaStringClose) / mark"string",
 
@@ -339,10 +364,6 @@ local build_grammar = wrap(function()
 		Parens = sym"(" * Exp * sym")",
 
 		FnArgs = symx"(" * Ct(ExpList^-1) * sym")" + sym"!" * -P"=" * Ct"",
-
-		-- chain that starts with colon expression (for precedence over table literal)
-		ColonChain = 
-			Callable * (ColonCall * (ChainItem)^0 + ColonSuffix) / mark"chain",
 
 		-- a list of funcalls and indexs on a callable
 		Chain = Callable * (ChainItem^1 * ColonSuffix^-1 + ColonSuffix) / mark"chain",
@@ -374,27 +395,31 @@ local build_grammar = wrap(function()
 
 		TableValue = KeyValue + Ct(Exp),
 
-		TableLit = sym"{" * White *
-			Ct((TableValue * ((sym"," + Break) * White * TableValue)^0)^-1) * sym","^-1 *
-			White * sym"}" / mark"table",
+		TableLit = sym"{" * Ct(
+				TableValueList^-1 * sym","^-1 *
+				(SpaceBreak * TableLitLine * (sym","^-1 * SpaceBreak * TableLitLine)^0 * sym","^-1)^-1
+			) * White * sym"}" / mark"table",
 
-		TableBlockInner = Ct(KeyValueLine * (Break^1 * KeyValueLine)^0),
+		TableValueList = TableValue * (sym"," * TableValue)^0,
+		TableLitLine = PushIndent * ((TableValueList * PopIndent) + (PopIndent * Cut)) + Space,
 
-		TableBlock = Break * #Cmt(Indent, advance_indent) * TableBlockInner * OutBlock / mark"table",
+		-- the unbounded table
+		TableBlockInner = Ct(KeyValueLine * (SpaceBreak^1 * KeyValueLine)^0),
+		TableBlock = SpaceBreak^1 * Advance * TableBlockInner * PopIndent / mark"table",
 
 		ClassDecl = key"class" * Name * (key"extends" * Exp + C"")^-1 * TableBlock / mark"class",
-		Export = key"export" * Ct(NameList) / mark"export",
+		Export = key"export" * (Ct(NameList) + op"*" + op"^") / mark"export",
 
-		KeyValue = Ct((SimpleName + sym"[" * Exp * sym"]") * symx":" * (Exp + TableBlock)),
+		KeyValue = (sym":" * Name) / self_assign + Ct((SimpleName + sym"[" * Exp * sym"]") * symx":" * (Exp + TableBlock)),
 		KeyValueList = KeyValue * (sym"," * KeyValue)^0,
-		KeyValueLine = Cmt(Indent, check_indent) * KeyValueList * sym","^-1,
+		KeyValueLine = CheckIndent * KeyValueList * sym","^-1,
 
 		FnArgsDef = sym"(" * Ct(FnArgDefList^-1) *
 			(key"using" * Ct(NameList + Space * "nil") + Ct"") *
 			sym")" + Ct"" * Ct"",
 
 		FnArgDefList =  FnArgDef * (sym"," * FnArgDef)^0,
-		FnArgDef = Name * (sym"=" * Exp)^-1 / wrap_default_arg,
+		FnArgDef = Ct(Name * (sym"=" * Exp)^-1),
 
 		FunLit = FnArgsDef *
 			(sym"->" * Cc"slim" + sym"=>" * Cc"fat") *
@@ -403,6 +428,10 @@ local build_grammar = wrap(function()
 		NameList = Name * (sym"," * Name)^0,
 		ExpList = Exp * (sym"," * Exp)^0,
 		ExpListLow = Exp * ((sym"," + sym";") * Exp)^0,
+
+		InvokeArgs = ExpList * (sym"," * SpaceBreak * Advance * ArgBlock)^-1,
+		ArgBlock = ArgLine * (sym"," * SpaceBreak * ArgLine)^0 * PopIndent,
+		ArgLine = CheckIndent * ExpList
 	}
 
 	return {

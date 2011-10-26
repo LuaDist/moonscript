@@ -21,12 +21,10 @@ for i in iter do
     print(i, j)
   end
 end
-do
-  local _item_0 = something
-  for _index_0 = 1, #_item_0 do
-    local x = _item_0[_index_0]
-    print(x)
-  end
+local _list_0 = something
+for _index_0 = 1, #_list_0 do
+  local x = _list_0[_index_0]
+  print(x)
 end
 for k, v in pairs(hello) do
   print(k, v)
@@ -46,36 +44,36 @@ local hello = {
 }
 x = (function()
   local _accum_0 = { }
-  do
-    local _item_0 = hello
-    for _index_0 = 1, #_item_0 do
-      local y = _item_0[_index_0]
-      local _value_0
-      if y % 2 == 0 then
-        _value_0 = y
-      end
-      if _value_0 ~= nil then
-        table.insert(_accum_0, _value_0)
-      end
+  local _len_0 = 0
+  local _list_1 = hello
+  for _index_0 = 1, #_list_1 do
+    local y = _list_1[_index_0]
+    local _value_0
+    if y % 2 == 0 then
+      _value_0 = y
+    end
+    if _value_0 ~= nil then
+      _len_0 = _len_0 + 1
+      _accum_0[_len_0] = _value_0
     end
   end
   return _accum_0
 end)()
 x = function()
-  do
-    local _item_0 = hello
-    for _index_0 = 1, #_item_0 do
-      local x = _item_0[_index_0]
-      local _ = y
-    end
+  local _list_1 = hello
+  for _index_0 = 1, #_list_1 do
+    x = _list_1[_index_0]
+    local _ = y
   end
 end
 local t = (function()
   local _accum_0 = { }
+  local _len_0 = 0
   for i = 10, 20 do
     local _value_0 = i * 2
     if _value_0 ~= nil then
-      table.insert(_accum_0, _value_0)
+      _len_0 = _len_0 + 1
+      _accum_0[_len_0] = _value_0
     end
   end
   return _accum_0
@@ -83,11 +81,13 @@ end)()
 local hmm = 0
 local y = (function()
   local _accum_0 = { }
+  local _len_0 = 0
   for j = 3, 30, 8 do
     hmm = hmm + 1
     local _value_0 = j * hmm
     if _value_0 ~= nil then
-      table.insert(_accum_0, _value_0)
+      _len_0 = _len_0 + 1
+      _accum_0[_len_0] = _value_0
     end
   end
   return _accum_0
@@ -101,10 +101,12 @@ end
 _ = function()
   return (function()
     local _accum_0 = { }
+    local _len_0 = 0
     for k = 10, 40 do
       local _value_0 = "okay"
       if _value_0 ~= nil then
-        table.insert(_accum_0, _value_0)
+        _len_0 = _len_0 + 1
+        _accum_0[_len_0] = _value_0
       end
     end
     return _accum_0
@@ -124,11 +126,13 @@ end
 local i = 0
 x = (function()
   local _accum_0 = { }
+  local _len_0 = 0
   while i < 10 do
     i = i + 1
     local _value_0 = i
     if _value_0 ~= nil then
-      table.insert(_accum_0, _value_0)
+      _len_0 = _len_0 + 1
+      _accum_0[_len_0] = _value_0
     end
   end
   return _accum_0

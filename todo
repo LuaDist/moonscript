@@ -1,22 +1,24 @@
 # TODO
 
+- move stuff out of format that should be in types
+
+- a do block for making a quick anon func and calling it
+
+- error with stray comma at end of line
+- ugly error if attempting to assign to rvalue like #hello
+
+- dump node in mark, see why values are being parsed multiple times
+
+if hello else world
+ ->  if hello then hello else world
+
 - varargs that get put in a nested generated function aren't valid anymore:
-
-- cascading expressions in function call? this looks too much like line decorator
-* maybe with assigns only
-
-	my_func if something
-	  "one arg"
-	else
-	  "other arg"
-
 
 - class expressions, x = class extends Hello do new: => print "hello"
 
 * multiline comments
 * table slices (almost)
 * add continue keyword (ouch)
-* vim syntax file
 
 * combine for and if line decorators
 
