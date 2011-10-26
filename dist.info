@@ -1,12 +1,12 @@
 --- This file is part of LuaDist project
 
 name = "moonscript"
-version = "scm"
+version = "0.1"
 
 maintainer = "Peter Drahoš"
-desc = "A little language that compiles to Lua",
-url = "http://leafo.net/moonscript",
-author = "Leaf Corcoran <leafot@gmail.com>",
+desc = "A little language that compiles to Lua"
+url = "http://leafo.net/moonscript"
+author = "Leaf Corcoran <leafot@gmail.com>"
 license = "MIT"
 
 depends = {
