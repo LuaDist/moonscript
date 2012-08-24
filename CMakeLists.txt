@@ -5,12 +5,13 @@
 # Please note that the package source code is licensed under its own license.
 
 project ( moonscript NONE )
-cmake_minimum_required ( VERSION 2.6 )
-include ( dist.cmake )
+cmake_minimum_required ( VERSION 2.8 )
+include ( cmake/dist.cmake )
+include ( lua )
 
-install ( DIRECTORY moonscript DESTINATION ${INSTALL_LMOD} )
-install_lua_executable(moon moon)
-install_lua_executable(moonc moonc)
-install_data( README.md )
-install_doc( docs/ )
-install_test( tests/ )
+install ( DIRECTORY moonscript DESTINATION ${INSTALL_LMOD} COMPONENT Runtime )
+install_lua_executable ( moon moon )
+install_lua_executable ( moonc moonc )
+install_data ( README.md )
+install_doc ( docs/ )
+install_test ( tests/ )
