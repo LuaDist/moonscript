@@ -94,9 +94,7 @@ _ = function(self, x, y, z)
   end
   self.x, self.z = x, z
 end
-x(function()
-  return 
-end)
+x(function() end)
 y(function()
   return 1
 end)
@@ -110,3 +108,8 @@ k(function()
     return 
   end
 end)
+return function()
+  if something then
+    return real_name
+  end
+end

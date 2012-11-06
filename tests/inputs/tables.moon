@@ -90,3 +90,15 @@ y = {
 
 call_me "hello", :x, :y, :z
 
+t = {
+  a: 'a'
+  [b]: 'b'
+}
+
+xam = {
+  hello: 1234
+  "hello": 12354
+  ["hello"]: 12354
+}
+
+

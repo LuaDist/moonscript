@@ -26,8 +26,41 @@ hola = [===[
 
 mm = [[well trhere]]
 
+oo = ""
 
 x = "\\"
 x = "a\\b"
 x = "\\\n"
 x = "\""
+
+-- 
+
+a = "hello #{hello} hello"
+b = "#{hello} hello"
+c = "hello #{5+1}"
+d = "#{hello world}"
+e = "#{1} #{2} #{3}"
+
+f = [[hello #{world} world]]
+
+--
+
+a = 'hello #{hello} hello'
+b = '#{hello} hello'
+c = 'hello #{hello}'
+
+
+--
+
+"hello"
+"hello"\format 1
+"hello"\format(1,2,3)
+"hello"\format(1,2,3) 1,2,3
+
+"hello"\world!
+"hello"\format!.hello 1,2,3
+"hello"\format 1,2,3
+
+something"hello"\world!
+something "hello"\world!
+

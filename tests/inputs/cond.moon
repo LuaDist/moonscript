@@ -50,4 +50,101 @@ if lets go
 elseif "just us"
   print "will smith" else show 5555555
 
+--
+
+if something = 10
+  print something
+else
+  print "else"
+
+hello = if something = 10
+  print something
+else
+  print "else"
+
+
+hello = 5 + if something = 10
+  print something
+
+---
+
+z = false
+
+if false
+  one
+elseif x = true
+  two
+elseif z = true
+  three
+else
+  four
+
+
+out = if false
+  one
+elseif x = true
+  two
+elseif z = true
+  three
+else
+  four
+
+---
+
+unless true
+  print "cool!"
+
+unless true and false
+  print "cool!"
+
+unless false then print "cool!"
+unless false then print "cool!" else print "no way!"
+
+unless nil
+  print "hello"
+else
+  print "world"
+
+--
+
+x = unless true
+  print "cool!"
+
+x = unless true and false
+  print "cool!"
+
+y = unless false then print "cool!"
+y = unless false then print "cool!" else print "no way!"
+
+z = unless nil
+  print "hello"
+else
+  print "world"
+
+print unless true
+  print "cool!"
+
+print unless true and false
+  print "cool!"
+
+print unless false then print "cool!"
+print unless false then print "cool!" else print "no way!"
+
+print unless nil
+  print "hello"
+else
+  print "world"
+
+--
+
+print "hello" unless value
+
+dddd = {1,2,3} unless value
+
+----------------
+
+a = 12
+a,c,b = "cool" if something
+
+
 

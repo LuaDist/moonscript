@@ -101,6 +101,12 @@ end)()
 if cool then
   print("hello")
 end
+if not (cool) then
+  print("hello")
+end
+if not (1212 and 3434) then
+  print("hello")
+end
 print("nutjob")
 if hello then
   _ = 343
@@ -137,12 +143,14 @@ something:hello(what)
 something.hello:world(a, b)
 something.hello:world(1, 2, 3)(a, b)
 x = 1232
-x = x + 10 + 3
+x = x + (10 + 3)
 local j = j - "hello"
 y = y * 2
 y = y / 100
 local m = m % 2
 local hello = hello .. "world"
+self.__class.something = self.__class.something + 10
+self.something = self.something + 10
 x = 0
 local _list_0 = values
 for _index_0 = 1, #_list_0 do
@@ -150,7 +158,6 @@ for _index_0 = 1, #_list_0 do
   _ = ((function()
     if ntype(v) == "fndef" then
       x = x + 1
-      return x
     end
   end)())
 end
@@ -192,3 +199,36 @@ x = notsomething
 y = ifsomething
 local z = x and b
 z = x(andb)
+while 10 > something({
+  something = "world"
+}) do
+  print("yeah")
+end
+x = {
+  okay = sure
+}
+yeah({
+  okay = man,
+  sure = sir
+})
+hello("no comma", {
+  yeah = dada,
+  another = world
+})
+hello("comma", {
+  something = hello_world,
+  frick = you
+})
+another(hello, one, two, three, four, {
+  yeah = man
+}, {
+  okay = yeah
+})
+a = a + (3 - 5)
+a = a * (3 + 5)
+a = a * 3
+a = a / func("cool")
+x["then"] = "hello"
+x["while"]["true"] = "hello"
+x = x or "hello"
+x = x and "hello"

@@ -6,7 +6,7 @@ source = {
 }
 
 description = {
-	summary = "A little language that compiles to Lua",
+	summary = "A programmer friendly language that compiles to Lua",
 	homepage = "http://moonscript.org",
 	maintainer = "Leaf Corcoran <leafot@gmail.com>",
 	license = "MIT"
@@ -24,7 +24,7 @@ build = {
 	modules = {
 		["moonscript"] = "moonscript/init.lua",
 		["moonscript.compile"] = "moonscript/compile.lua",
-		["moonscript.compile.line"] = "moonscript/compile/line.lua",
+		["moonscript.compile.statement"] = "moonscript/compile/statement.lua",
 		["moonscript.compile.value"] = "moonscript/compile/value.lua",
 		["moonscript.compile.format"] = "moonscript/compile/format.lua",
 		["moonscript.transform"] = "moonscript/transform.lua",
@@ -35,9 +35,11 @@ build = {
 		["moonscript.util"] = "moonscript/util.lua",
 		["moonscript.errors"] = "moonscript/errors.lua",
 		["moonscript.version"] = "moonscript/version.lua",
+		["moon"] = "moon/init.lua",
+		["moon.all"] = "moon/all.lua",
 	},
 	install = {
-		bin = { "moon", "moonc" }
+		bin = { "bin/moon", "bin/moonc" }
 	}
 }
 

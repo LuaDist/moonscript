@@ -19,37 +19,6 @@ user_error = function(...)
     ...
   })
 end
-local manual_return = Set({
-  "foreach",
-  "for",
-  "while"
-})
-default_return = function(exp)
-  local t = ntype(exp)
-  if t == "chain" and exp[2] == "return" then
-    local items = {
-      "explist"
-    }
-    do
-      local _item_0 = exp[3][2]
-      for _index_0 = 1, #_item_0 do
-        local v = _item_0[_index_0]
-        insert(items, v)
-      end
-    end
-    return {
-      "return",
-      items
-    }
-  elseif manual_return[t] then
-    return exp
-  else
-    return {
-      "return",
-      exp
-    }
-  end
-end
 moonlib = {
   bind = function(tbl, name)
     return concat({
@@ -63,13 +32,6 @@ moonlib = {
     })
   end
 }
-cascading = Set({
-  "if",
-  "with"
-})
-non_atomic = Set({
-  "update"
-})
 has_value = function(node)
   if ntype(node) == "chain" then
     local ctype = ntype(node[#node])
@@ -77,9 +39,6 @@ has_value = function(node)
   else
     return true
   end
-end
-is_non_atomic = function(node)
-  return non_atomic[ntype(node)]
 end
 count_lines = function(str)
   local count = 1

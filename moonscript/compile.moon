@@ -4,25 +4,96 @@ util = require "moonscript.util"
 dump = require "moonscript.dump"
 
 require "moonscript.compile.format"
-require "moonscript.compile.line"
+require "moonscript.compile.statement"
 require "moonscript.compile.value"
 
 transform = require "moonscript.transform"
 
-import NameProxy from transform
+import NameProxy, LocalName from transform
 import Set from require "moonscript.data"
 import ntype from require "moonscript.types"
 
 import concat, insert from table
 import pos_to_line, get_closest_line, trim from util
 
-export tree, value, format_error
-export Block
+mtype = util.moon.type
 
--- buffer for building up a line
+export tree, value, format_error
+export Block, RootBlock
+
+local Line, Lines
+
+-- a buffer for building up lines
+class Lines
+  new: =>
+    @posmap = {}
+
+  mark_pos: (pos, line=#@) =>
+    @posmap[line] = pos unless @posmap[line]
+
+  -- append a line or lines to the buffer
+  add: (item) =>
+    switch mtype item
+      when Line
+        item\render self
+      when Block
+        item\render self
+      else
+        @[#@ + 1] = item
+    @
+
+  flatten_posmap: (line_no=0, out={}) =>
+    posmap = @posmap
+    for i, l in ipairs @
+      switch type l
+        when "table"
+          _, line_no = l\flatten_posmap line_no, out
+        when "string"
+          line_no += 1
+          out[line_no] = posmap[i]
+
+    out, line_no
+
+  flatten: (indent=nil, buffer={}) =>
+    for i = 1, #@
+      l = @[i]
+      switch type l
+        when "string"
+          insert buffer, indent if indent
+          insert buffer, l
+
+          -- insert breaks between ambiguous statements
+          if "string" == type @[i + 1]
+            lc = l\sub(-1)
+            if (lc == ")" or lc == "]") and @[i + 1]\sub(1,1) == "("
+              insert buffer, ";"
+
+          insert buffer, "\n"
+          last = l
+        when "table"
+           l\flatten indent and indent .. indent_char or indent_char, buffer
+    buffer
+
+  __tostring: =>
+    -- strip non-array elements
+    strip = (t) ->
+      if "table" == type t
+        [strip v for v in *t]
+      else
+        t
+
+    "Lines<#{util.dump(strip @)\sub 1, -2}>"
+
+-- Buffer for building up a line
+-- A plain old table holding either strings or Block objects.
+-- Adding a line to a line will cause that line to be merged in.
 class Line
+  pos: nil
+
   _append_single: (item) =>
-    if util.moon.type(item) == Line
+    if Line == mtype item
+      -- print "appending line to line", item.pos, item
+      @pos = item.pos unless @pos -- bubble pos if there isn't one
       @_append_single value for value in *item
     else
       insert self, item
@@ -32,44 +103,76 @@ class Line
     for i = 1,#items
       @_append_single items[i]
       if i < #items then insert self, delim
+    nil
 
   append: (...) =>
     @_append_single item for item in *{...}
     nil
 
-  render: =>
-    buff = {}
-    for i = 1,#self
-      c = self[i]
-      insert buff, if util.moon.type(c) == Block
-        c\render!
-      else
-        c
-    concat buff
+  -- todo: try to remove concats from here
+  render: (buffer) =>
+    current = {}
 
-class Block_
+    add_current = ->
+      buffer\add concat current
+      buffer\mark_pos @pos
+
+    for chunk in *@
+      switch mtype chunk
+        when Block
+          for block_chunk in *chunk\render Lines!
+            if "string" == type block_chunk
+              insert current, block_chunk
+            else
+              add_current!
+              buffer\add block_chunk
+              current = {}
+        else
+          insert current, chunk
+
+    if #current > 0
+      add_current!
+
+    buffer
+
+  __tostring: =>
+    "Line<#{util.dump(@)\sub 1, -2}>"
+
+class Block
   header: "do"
   footer: "end"
 
   export_all: false
   export_proper: false
 
-  new: (@parent, @header, @footer) =>
-    @current_line = 1
+  __tostring: =>
+    h = if "string" == type @header
+      @header
+    else
+      unpack @header\render {}
 
-    @_lines = {}
-    @_posmap = {}
+    "Block<#{h}> <- " .. tostring @parent
+
+  new: (@parent, @header, @footer) =>
+    @_lines = Lines!
+
     @_names = {}
     @_state = {}
+    @_listeners = {}
+
+    with transform
+      @transform = {
+        value: .Value\bind self
+        statement: .Statement\bind self
+      }
 
     if @parent
+      @root = @parent.root
       @indent = @parent.indent + 1
       setmetatable @_state, { __index: @parent._state }
+      setmetatable @_listeners, { __index: @parent._listeners }
     else
       @indent = 0
-
-  line_table: =>
-    @_posmap
 
   set: (name, value) =>
     @_state[name] = value
@@ -77,14 +180,27 @@ class Block_
   get: (name) =>
     @_state[name]
 
+  listen: (name, fn) =>
+    @_listeners[name] = fn
+
+  unlisten: (name) =>
+    @_listeners[name] = nil
+
+  send: (name, ...) =>
+    if fn = @_listeners[name]
+      fn self, ...
+
   declare: (names) =>
     undeclared = for name in *names
-      t = util.moon.type(name)
-      real_name = if t == NameProxy
-        name\get_name self
-      elseif t == "string"
-        name
-      real_name if real_name and not @has_name real_name
+      is_local = false
+      real_name = switch mtype name
+        when LocalName
+          is_local = true
+          name\get_name self
+        when NameProxy then name\get_name self
+        when "string" then name
+
+      real_name if is_local or real_name and not @has_name real_name
 
     @put_name name for name in *undeclared
     undeclared
@@ -92,9 +208,12 @@ class Block_
   whitelist_names: (names) =>
     @_name_whitelist = Set names
 
-  put_name: (name) =>
-    name = name\get_name self if util.moon.type(name) == NameProxy
-    @_names[name] = true
+  put_name: (name, ...) =>
+    value = ...
+    value = true if select("#", ...) == 0
+
+    name = name\get_name self if NameProxy == mtype name
+    @_names[name] = value
 
   has_name: (name, skip_exports) =>
     if not skip_exports
@@ -125,83 +244,29 @@ class Block_
     @stm {"assign", {name}, {value}}
     name
 
-  mark_pos: (node) =>
-    if node[-1]
-      @last_pos = node[-1]
-      if not @_posmap[@current_line]
-        @_posmap[@current_line] = @last_pos
-
-  -- add raw text as new line
-  add_line_text: (text) =>
-    insert @_lines, text
-
-  append_line_table: (sub_table, offset) =>
-    offset = offset + @current_line
-
-    for line, source in pairs sub_table
-      line += offset
-      if not @_posmap[line]
-        @_posmap[line] = source
-
-  add_line_tables: (line) =>
-      for chunk in *line
-        if util.moon.type(chunk) == Block
-          current = chunk
-          while current
-            if util.moon.type(current.header) == Line
-              @add_line_tables current.header
-
-            @append_line_table current\line_table!, 0
-            @current_line += current.current_line
-            current = current.next
-
   -- add a line object
-  add: (line) =>
-    t = util.moon.type line
+  add: (item) =>
+    @_lines\add item
+    item
 
-    if t == "string"
-      @add_line_text line
-    elseif t == Block
-      @add @line line
-    elseif t == Line
-      @add_line_tables line
-      @add_line_text line\render!
-      @current_line += 1
+  -- todo: pass in buffer as argument
+  render: (buffer) =>
+    buffer\add @header
+    buffer\mark_pos @pos
+
+    if @next
+      buffer\add @_lines
+      @next\render buffer
     else
-      error "Adding unknown item"
-    nil
-
-  _insert_breaks: =>
-    for i = 1, #@_lines - 1
-      left, right = @_lines[i], @_lines[i+1]
-      if left\sub(-1) == ")" and right\sub(1,1) == "("
-        @_lines[i] = @_lines[i]..";"
-
-  render: =>
-    flatten = (line) ->
-      if type(line) == "string"
-        line
+      -- join an empty block into a single line
+      if #@_lines == 0 and "string" == type buffer[#buffer]
+        buffer[#buffer] ..= " " .. (unpack Lines!\add @footer)
       else
-        line\render!
+        buffer\add @_lines
+        buffer\add @footer
+        buffer\mark_pos @pos
 
-    header = flatten @header
-
-    if #@_lines == 0
-      footer = flatten @footer
-      return concat {header, footer}, " "
-
-    indent = indent_char\rep @indent
-
-    -- inject semicolons for ambiguous lines
-    if not @delim then @_insert_breaks!
-
-    body = indent .. concat @_lines, (@delim or "") .. "\n" .. indent
-
-    concat {
-      header,
-      body,
-      indent_char\rep(@indent - 1) .. if @next then @next\render! else flatten @footer
-    }, "\n"
+    buffer
 
   block: (header, footer) =>
     Block self, header, footer
@@ -220,16 +285,24 @@ class Block_
   -- line wise compile functions
   name: (node) => @value node
   value: (node, ...) =>
-    node = transform.value node
+    node = @transform.value node
     action = if type(node) != "table"
       "raw_value"
     else
-      @mark_pos node
       node[1]
 
     fn = value_compile[action]
     error "Failed to compile value: "..dump.value node if not fn
-    fn self, node, ...
+
+    out = fn self, node, ...
+
+    -- store the pos, creating a line if necessary
+    if type(node) == "table" and node[-1]
+      if type(out) == "string"
+        out = with Line! do \append out
+      out.pos = node[-1]
+
+    out
 
   values: (values, delim) =>
     delim = delim or ', '
@@ -237,64 +310,52 @@ class Block_
       \append_list [@value v for v in *values], delim
 
   stm: (node, ...) =>
-    return if not node -- slip blank statements
-    node = transform.stm node
-    fn = line_compile[ntype(node)]
-    if not fn
+    return if not node -- skip blank statements
+    node = @transform.statement node
+
+    result = if fn = line_compile[ntype(node)]
+      fn self, node, ...
+    else
       -- coerce value into statement
       if has_value node
         @stm {"assign", {"_"}, {node}}
       else
-        @add @value node
-    else
-      @mark_pos node
-      out = fn self, node, ...
-      @add out if out
-    nil
+        @value node
 
-  ret_stms: (stms, ret) =>
-    if not ret
-      ret = default_return
-
-    -- find last exp for explicit return
-    last_exp_id = 0
-    for i = #stms, 1, -1
-      stm = stms[i]
-      if stm and util.moon.type(stm) != transform.Run
-        last_exp_id = i
-        break
-
-    for i, stm in ipairs stms
-      if i == last_exp_id
-        if cascading[ntype(stm)]
-          @stm stm, ret
-        elseif @is_value stm
-          line = ret stms[i]
-          if @is_stm line
-            @stm line
-          else
-            error "got a value from implicit return"
-        else
-          -- nothing we can do with a statement except show it
-          @stm stm
-      else
-        @stm stm
+    if result
+      if type(node) == "table" and type(result) == "table" and node[-1]
+        result.pos = node[-1]
+      @add result
 
     nil
 
   stms: (stms, ret) =>
-    if ret
-      @ret_stms stms, ret
-    else
-      @stm stm for stm in *stms
+    error "deprecated stms call, use transformer" if ret
+    @stm stm for stm in *stms
     nil
 
-class RootBlock extends Block_
-  render: =>
-    @_insert_breaks!
-    concat @_lines, "\n"
+  splice: (fn) =>
+    lines = {"lines", @_lines}
+    @_lines = Lines!
+    @stms fn lines
 
-Block = Block_
+class RootBlock extends Block
+  new: (@options) =>
+    @root = self
+    super!
+
+  __tostring: => "RootBlock<>"
+
+  root_stms: (stms) =>
+    unless @options.implicitly_return_root == false
+      stms = transform.Statement.transformers.root_stms self, stms
+    @stm s for s in *stms
+
+  render: =>
+    -- print @_lines
+    buffer = @_lines\flatten!
+    buffer[#buffer] = nil if buffer[#buffer] == "\n"
+    table.concat buffer
 
 format_error = (msg, pos, file_str) ->
   line = pos_to_line file_str, pos
@@ -312,26 +373,28 @@ value = (value) ->
     out = \render!
   out
 
-tree = (tree) ->
-  scope = RootBlock!
+tree = (tree, options={}) ->
+  assert tree, "missing tree"
+
+  scope = (options.scope or RootBlock) options
 
   runner = coroutine.create ->
-    scope\stm line for line in *tree
-    scope\render!
+    scope\root_stms tree
 
-  success, result = coroutine.resume runner
+  success, err = coroutine.resume runner
   if not success
-    error_msg = if type(result) == "table"
-      error_type = result[1]
+    error_msg = if type(err) == "table"
+      error_type = err[1]
       if error_type == "user-error"
-        result[2]
+        err[2]
       else
         error "Unknown error thrown", util.dump error_msg
     else
-      concat {result, debug.traceback runner}, "\n"
+      concat {err, debug.traceback runner}, "\n"
 
     nil, error_msg, scope.last_pos
   else
-    tbl = scope\line_table!
-    result, tbl
+    lua_code = scope\render!
+    posmap = scope._lines\flatten_posmap!
+    lua_code, posmap
 

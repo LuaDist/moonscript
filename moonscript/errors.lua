@@ -24,6 +24,34 @@ reverse_line_number = function(fname, line_table, line_num, cache)
   end
   return "unknown"
 end
+truncate_traceback = function(traceback, chunk_func)
+  if chunk_func == nil then
+    chunk_func = "moonscript_chunk"
+  end
+  traceback = split(traceback, "\n")
+  local stop = #traceback
+  while stop > 1 do
+    if traceback[stop]:match(chunk_func) then
+      break
+    end
+    stop = stop - 1
+  end
+  traceback = (function()
+    local _accum_0 = { }
+    local _len_0 = 0
+    local _list_0 = traceback
+    local _max_0 = stop
+    for _index_0 = 1, _max_0 < 0 and #_list_0 + _max_0 or _max_0 do
+      local t = _list_0[_index_0]
+      _len_0 = _len_0 + 1
+      _accum_0[_len_0] = t
+    end
+    return _accum_0
+  end)()
+  local rep = "function '" .. chunk_func .. "'"
+  traceback[#traceback] = traceback[#traceback]:gsub(rep, "main chunk")
+  return concat(traceback, "\n")
+end
 rewrite_traceback = function(text, err)
   local line_tables = moon.line_tables
   local V, S, Ct, C = lpeg.V, lpeg.S, lpeg.Ct, lpeg.C
@@ -45,6 +73,9 @@ rewrite_traceback = function(text, err)
         fname,
         ":",
         reverse_line_number(fname, tbl, line, cache),
+        "(",
+        line,
+        ")",
         ": ",
         msg
       })
@@ -54,11 +85,14 @@ rewrite_traceback = function(text, err)
   end
   err = rewrite_single(err)
   local match = g:match(text)
+  if not (match) then
+    return nil
+  end
   for i, trace in ipairs(match) do
     match[i] = rewrite_single(trace)
   end
   return concat({
-    "moon:" .. err,
+    "moon: " .. err,
     header_text,
     "\t" .. concat(match, "\n\t")
   }, "\n")

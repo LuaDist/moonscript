@@ -52,25 +52,27 @@ print z for z in *hello
 
 -- slice
 x = {1, 2, 3, 4, 5, 6, 7}
-print y for y in *x[2:-5:2]
-print y for y in *x[:3]
-print y for y in *x[2:]
-print y for y in *x[::2]
-print y for y in *x[2::2]
+print y for y in *x[2,-5,2]
+print y for y in *x[,3]
+print y for y in *x[2,]
+print y for y in *x[,,2]
+print y for y in *x[2,,2]
 
--- vararg bubbling
-f = (...) -> #{...}
+a, b, c = 1, 5, 2
+print y for y in *x[a,b,c]
 
-x = (...) ->
-  [x*x for x in *{...} when f(...) > 4]
 
 normal = (hello) ->
   [x for x in yeah]
 
-dont_bubble = ->
-  [x for x in ((...)-> print ...)("hello")]
 
 test = x 1,2,3,4,5
 print thing for thing in *test
+
+-> a = b for row in *rows
+
+-- testing implicit return
+-> x for x in *things
+-> [x for x in *things]
 
 

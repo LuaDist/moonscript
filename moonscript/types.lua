@@ -2,18 +2,55 @@ module("moonscript.types", package.seeall)
 local util = require("moonscript.util")
 local data = require("moonscript.data")
 local insert = table.insert
+manual_return = data.Set({
+  "foreach",
+  "for",
+  "while",
+  "return"
+})
+cascading = data.Set({
+  "if",
+  "unless",
+  "with",
+  "switch",
+  "class",
+  "do"
+})
+is_value = function(stm)
+  local compile, transform = moonscript.compile, moonscript.transform
+  return compile.Block:is_value(stm) or transform.Value:can_transform(stm)
+end
+comprehension_has_value = function(comp)
+  return is_value(comp[2])
+end
 ntype = function(node)
-  if type(node) ~= "table" then
-    return "value"
-  else
+  local _exp_0 = type(node)
+  if "nil" == _exp_0 then
+    return "nil"
+  elseif "table" == _exp_0 then
     return node[1]
+  else
+    return "value"
   end
+end
+value_is_singular = function(node)
+  return type(node) ~= "table" or node[1] ~= "exp" or #node == 2
 end
 is_slice = function(node)
   return ntype(node) == "chain" and ntype(node[#node]) == "slice"
 end
 local t = { }
 local node_types = {
+  class = {
+    {
+      "name",
+      "Tmp"
+    },
+    {
+      "body",
+      t
+    }
+  },
   fndef = {
     {
       "args",
@@ -42,7 +79,7 @@ local node_types = {
     },
     {
       "body",
-      { }
+      t
     }
   },
   ["for"] = {
@@ -51,6 +88,16 @@ local node_types = {
     },
     {
       "bounds",
+      t
+    },
+    {
+      "body",
+      t
+    }
+  },
+  ["while"] = {
+    {
+      "cond",
       t
     },
     {
@@ -88,13 +135,13 @@ local node_types = {
 local build_table
 build_table = function()
   local key_table = { }
-  for name, args in pairs(node_types) do
+  for node_name, args in pairs(node_types) do
     local index = { }
     for i, tuple in ipairs(args) do
-      local name = tuple[1]
-      index[name] = i + 1
+      local prop_name = tuple[1]
+      index[prop_name] = i + 1
     end
-    key_table[name] = index
+    key_table[node_name] = index
   end
   return key_table
 end
@@ -131,8 +178,17 @@ end
 build = nil
 build = setmetatable({
   group = function(body)
+    if body == nil then
+      body = { }
+    end
     return {
       "group",
+      body
+    }
+  end,
+  ["do"] = function(body)
+    return {
+      "do",
       body
     }
   end,
@@ -147,6 +203,19 @@ build = setmetatable({
     })
   end,
   table = function(tbl)
+    if tbl == nil then
+      tbl = { }
+    end
+    local _list_0 = tbl
+    for _index_0 = 1, #_list_0 do
+      local tuple = _list_0[_index_0]
+      if type(tuple[1]) == "string" then
+        tuple[1] = {
+          "key_literal",
+          tuple[1]
+        }
+      end
+    end
     return {
       "table",
       tbl
@@ -164,12 +233,10 @@ build = setmetatable({
       "chain",
       base
     }
-    do
-      local _item_0 = parts
-      for _index_0 = 1, #_item_0 do
-        local part = _item_0[_index_0]
-        insert(node, part)
-      end
+    local _list_0 = parts
+    for _index_0 = 1, #_list_0 do
+      local part = _list_0[_index_0]
+      insert(node, part)
     end
     return node
   end
@@ -200,3 +267,4 @@ smart_node = function(node)
     end
   })
 end
+return nil

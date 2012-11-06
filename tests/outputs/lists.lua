@@ -197,8 +197,8 @@ local hello = (function()
   for _index_0 = 1, #_list_1 do
     x = _list_1[_index_0]
     local _list_2 = items
-    for _index_0 = 1, #_list_2 do
-      local y = _list_2[_index_0]
+    for _index_1 = 1, #_list_2 do
+      local y = _list_2[_index_1]
       _len_0 = _len_0 + 1
       _accum_0[_len_0] = x + y
     end
@@ -246,28 +246,12 @@ for _index_0 = 2, #_list_6, 2 do
   local y = _list_6[_index_0]
   print(y)
 end
-local f
-f = function(...)
-  return #{
-    ...
-  }
-end
-x = function(...)
-  return (function()
-    local _accum_0 = { }
-    local _len_0 = 0
-    local _list_7 = {
-      ...
-    }
-    for _index_0 = 1, #_list_7 do
-      x = _list_7[_index_0]
-      if f(...) > 4 then
-        _len_0 = _len_0 + 1
-        _accum_0[_len_0] = x * x
-      end
-    end
-    return _accum_0
-  end)()
+local a, b, c = 1, 5, 2
+local _list_7 = x
+local _max_2 = b
+for _index_0 = a, _max_2 < 0 and #_list_7 + _max_2 or _max_2, c do
+  local y = _list_7[_index_0]
+  print(y)
 end
 local normal
 normal = function(hello)
@@ -281,23 +265,37 @@ normal = function(hello)
     return _accum_0
   end)()
 end
-local dont_bubble
-dont_bubble = function()
+local test = x(1, 2, 3, 4, 5)
+local _list_8 = test
+for _index_0 = 1, #_list_8 do
+  local thing = _list_8[_index_0]
+  print(thing)
+end
+local _
+_ = function()
+  local _list_9 = rows
+  for _index_0 = 1, #_list_9 do
+    local row = _list_9[_index_0]
+    a = b
+  end
+end
+_ = function()
+  local _list_9 = things
+  for _index_0 = 1, #_list_9 do
+    x = _list_9[_index_0]
+    _ = x
+  end
+end
+return function()
   return (function()
     local _accum_0 = { }
     local _len_0 = 0
-    for x in (function(...)
-      return print(...)
-    end)("hello") do
+    local _list_9 = things
+    for _index_0 = 1, #_list_9 do
+      x = _list_9[_index_0]
       _len_0 = _len_0 + 1
       _accum_0[_len_0] = x
     end
     return _accum_0
   end)()
-end
-local test = x(1, 2, 3, 4, 5)
-local _list_7 = test
-for _index_0 = 1, #_list_7 do
-  local thing = _list_7[_index_0]
-  print(thing)
 end

@@ -24,6 +24,13 @@ for x in *something
 
 for k,v in pairs hello do print k,v
 
+for x in y, z
+  print x
+
+for x in y, z, k
+  print x
+
+
 x = ->
   for x in y
     y
@@ -67,4 +74,43 @@ i = 0
 x = while i < 10
   i += 1
 
+-- values that can'e be coerced
+
+x = for thing in *3
+  y = "hello"
+
+x = for x=1,2
+  y = "hello"
+
+
+-- continue
+
+while true
+  continue if false
+  print "yes"
+  break if true
+  print "no"
+
+
+for x=1,10
+  continue if x > 3 and x < 7
+  print x
+
+
+list = for x=1,10
+  continue if x > 3 and x < 7
+  x
+
+
+for a in *{1,2,3,4,5,6}
+  continue if a == 1
+  continue if a == 3
+  print a
+
+
+
+for x=1,10
+  continue if x % 2 == 0
+  for y = 2,12
+    continue if y % 3 == 0
 

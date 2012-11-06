@@ -11,14 +11,10 @@ import concat, insert from table
 
 export value_compile
 
-table_append = (name, len, value) ->
-  {
-    {"update", len, "+=", 1}
-    {"assign", {
-      {"chain", name, {"index", len}} }, { value }}
-  }
+table_delim = ","
 
 value_compile =
+  -- list of values separated by binary operators
   exp: (node) =>
     _comp = (i, value) ->
       if i % 2 == 1 and value == "!="
@@ -28,48 +24,18 @@ value_compile =
     with @line!
       \append_list [_comp i,v for i,v in ipairs node when i > 1], " "
 
-  update: (node) =>
-    _, name = unpack node
-    @stm node
-    @name name
-
+  -- list of expressions separated by commas
   explist: (node) =>
     with @line!
-      \append_list [@value v for v in *node[2:]], ", "
+      \append_list [@value v for v in *node[2,]], ", "
 
   parens: (node) =>
     @line "(", @value(node[2]), ")"
 
   string: (node) =>
-    _, delim, inner, delim_end = unpack node
-    delim..inner..(delim_end or delim)
-
-  with: (node) =>
-    with @block "(function()", "end)()"
-      \stm node, default_return
-
-  if: (node) =>
-    with @block "(function()", "end)()"
-      \stm node, default_return
-
-  -- todo: convert to transformation
-  comprehension: (node) =>
-    _, exp, iter = unpack node
-
-    with @block!
-      tmp_name = \init_free_var "accum", {"table"}
-      len_name = \init_free_var "len", 0
-
-      action = (value) ->
-        table_append tmp_name, len_name, value
-
-      \stm node, action
-      \stm {"return", tmp_name}
-
-      .header, .footer = if .has_varargs
-        "(function(...)", "end)(...)"
-      else
-        "(function()", "end)()"
+    _, delim, inner = unpack node
+    end_delim = delim\gsub "%[", "]"
+    delim..inner..end_delim
 
   chain: (node) =>
     callee = node[2]
@@ -90,7 +56,7 @@ value_compile =
       elseif t == "index"
         "[", @value(arg), "]"
       elseif t == "dot"
-        ".", arg
+        ".", tostring arg
       elseif t == "colon"
         ":", arg, chain_item(node[3])
       elseif t == "colon_stub"
@@ -98,14 +64,15 @@ value_compile =
       else
         error "Unknown chain action: "..t
 
-    if ntype(callee) == "self" and node[3] and ntype(node[3]) == "call"
-      callee[1] = "self_colon"
+    t = ntype(callee)
+    if (t == "self" or t == "self_class") and node[3] and ntype(node[3]) == "call"
+      callee[1] = t.."_colon"
 
     callee_value = @value callee
     callee_value = @line "(", callee_value, ")" if ntype(callee) == "exp"
 
     actions = with @line!
-      \append chain_item action for action in *node[3:]
+      \append chain_item action for action in *node[3,]
 
     @line callee_value, actions
 
@@ -119,7 +86,7 @@ value_compile =
       name = if type(name) == "string"
         name
       else
-        if name[1] == "self"
+        if name[1] == "self" or name[1] == "self_class"
           insert self_args, name
         name[2]
       insert default_args, arg if default_value
@@ -146,7 +113,9 @@ value_compile =
       self_arg_values = [arg[2] for arg in *self_args]
       \stm {"assign", self_args, self_arg_values} if #self_args > 0
 
-      \ret_stms block
+      \stms block
+
+      -- inject more args if the block manipulated arguments
       if #args > #arg_names -- will only work for simple adjustments
         arg_names = for arg in *args
           arg[1]
@@ -156,19 +125,18 @@ value_compile =
   table: (node) =>
     _, items = unpack node
     with @block "{", "}"
-      .delim = ","
-
       format_line = (tuple) ->
         if #tuple == 2
           key, value = unpack tuple
 
-          if type(key) == "string" and data.lua_keywords[key]
-            key = {"string", '"', key}
+          -- escape keys that are lua keywords
+          if ntype(key) == "key_literal" and data.lua_keywords[key[2]]
+            key = {"string", '"', key[2]}
 
-          assign = if type(key) != "string"
-            @line "[", \value(key), "]"
+          assign = if ntype(key) == "key_literal"
+            key[2]
           else
-            key
+            @line "[", \value(key), "]"
 
           \set "current_block", key
           out = @line assign, " = ", \value(value)
@@ -178,7 +146,11 @@ value_compile =
           @line \value tuple[1]
 
       if items
-        \add format_line line for line in *items
+        count = #items
+        for i, tuple in ipairs items
+          line = format_line tuple
+          line\append table_delim unless count == i
+          \add line
 
   minus: (node) =>
     @line "-", @value node[2]
@@ -198,10 +170,22 @@ value_compile =
   self: (node) =>
     "self."..@value node[2]
 
+  self_class: (node) =>
+    "self.__class."..@value node[2]
+
   self_colon: (node) =>
     "self:"..@value node[2]
 
+  self_class_colon: (node) =>
+    "self.__class:"..@value node[2]
+
+  -- catch all pure string values
   raw_value: (value) =>
+    sup = @get"super"
+    if value == "super" and sup
+      return @value sup self
+
     if value == "..."
-      @has_varargs = true
+      @send "varargs"
+
     tostring value

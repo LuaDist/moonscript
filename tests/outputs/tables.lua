@@ -117,3 +117,12 @@ call_me("hello", {
   y = y,
   z = z
 })
+local t = {
+  a = 'a',
+  [b] = 'b'
+}
+local xam = {
+  hello = 1234,
+  ["hello"] = 12354,
+  ["hello"] = 12354
+}

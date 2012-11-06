@@ -102,6 +102,8 @@ hi = -"herfef"
 x = -[x for x in x]
 
 print "hello" if cool
+print "hello" unless cool
+print "hello" unless 1212 and 3434 -- hello
 
 print "nutjob"
 
@@ -139,6 +141,9 @@ y *= 2
 y /= 100
 m %= 2
 hello ..= "world"
+
+@@something += 10
+@something += 10
 
 x = 0
 (if ntype(v) == "fndef" then x += 1) for v in *values
@@ -193,3 +198,46 @@ z = x and b
 z = x andb
 
 
+-- undelimited tables
+
+while 10 > something
+  something: "world"
+    print "yeah"
+
+x =
+  okay: sure
+
+yeah
+  okay: man
+  sure: sir
+
+hello "no comma"
+ yeah: dada
+ another: world
+
+hello "comma",
+ something: hello_world
+ frick: you
+
+-- creates two tables
+another hello, one,
+  two, three, four, yeah: man
+  okay: yeah
+
+-- 
+a += 3 - 5
+a *= 3 + 5
+a *= 3
+a /= func "cool"
+
+---
+
+x.then = "hello"
+x.while.true = "hello"
+
+--
+
+x or= "hello"
+x and= "hello"
+
+-- cooool

@@ -85,3 +85,153 @@ elseif "just us" then
 else
   show(5555555)
 end
+do
+  local something = 10
+  if something then
+    print(something)
+  else
+    print("else")
+  end
+end
+local hello
+do
+  local something = 10
+  if something then
+    hello = print(something)
+  else
+    hello = print("else")
+  end
+end
+hello = 5 + (function()
+  do
+    local something = 10
+    if something then
+      return print(something)
+    end
+  end
+end)()
+local z = false
+if false then
+  local _ = one
+else
+  do
+    local x = true
+    if x then
+      local _ = two
+    else
+      do
+        z = true
+        if z then
+          local _ = three
+        else
+          local _ = four
+        end
+      end
+    end
+  end
+end
+local out
+if false then
+  out = one
+else
+  do
+    local x = true
+    if x then
+      out = two
+    else
+      do
+        z = true
+        if z then
+          out = three
+        else
+          out = four
+        end
+      end
+    end
+  end
+end
+if not (true) then
+  print("cool!")
+end
+if not (true and false) then
+  print("cool!")
+end
+if not (false) then
+  print("cool!")
+end
+if not (false) then
+  print("cool!")
+else
+  print("no way!")
+end
+if not (nil) then
+  print("hello")
+else
+  print("world")
+end
+local x
+if not (true) then
+  x = print("cool!")
+end
+if not (true and false) then
+  x = print("cool!")
+end
+local y
+if not (false) then
+  y = print("cool!")
+end
+if not (false) then
+  y = print("cool!")
+else
+  y = print("no way!")
+end
+if not (nil) then
+  z = print("hello")
+else
+  z = print("world")
+end
+print((function()
+  if not (true) then
+    return print("cool!")
+  end
+end)())
+print((function()
+  if not (true and false) then
+    return print("cool!")
+  end
+end)())
+print((function()
+  if not (false) then
+    return print("cool!")
+  end
+end)())
+print((function()
+  if not (false) then
+    return print("cool!")
+  else
+    return print("no way!")
+  end
+end)())
+print((function()
+  if not (nil) then
+    return print("hello")
+  else
+    return print("world")
+  end
+end)())
+if not (value) then
+  print("hello")
+end
+local dddd
+if not (value) then
+  dddd = {
+    1,
+    2,
+    3
+  }
+end
+local a = 12
+local c, b
+if something then
+  a, c, b = "cool"
+end

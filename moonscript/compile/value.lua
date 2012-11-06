@@ -8,33 +8,7 @@ do
   ntype = _table_0.ntype
 end
 local concat, insert = table.concat, table.insert
-local table_append
-table_append = function(name, len, value)
-  return {
-    {
-      "update",
-      len,
-      "+=",
-      1
-    },
-    {
-      "assign",
-      {
-        {
-          "chain",
-          name,
-          {
-            "index",
-            len
-          }
-        }
-      },
-      {
-        value
-      }
-    }
-  }
-end
+local table_delim = ","
 value_compile = {
   exp = function(self, node)
     local _comp
@@ -60,24 +34,17 @@ value_compile = {
       return _with_0
     end
   end,
-  update = function(self, node)
-    local _, name = unpack(node)
-    self:stm(node)
-    return self:name(name)
-  end,
   explist = function(self, node)
     do
       local _with_0 = self:line()
       _with_0:append_list((function()
         local _accum_0 = { }
         local _len_0 = 0
-        do
-          local _item_0 = node
-          for _index_0 = 2, #_item_0 do
-            local v = _item_0[_index_0]
-            _len_0 = _len_0 + 1
-            _accum_0[_len_0] = self:value(v)
-          end
+        local _list_0 = node
+        for _index_0 = 2, #_list_0 do
+          local v = _list_0[_index_0]
+          _len_0 = _len_0 + 1
+          _accum_0[_len_0] = self:value(v)
         end
         return _accum_0
       end)(), ", ")
@@ -88,47 +55,9 @@ value_compile = {
     return self:line("(", self:value(node[2]), ")")
   end,
   string = function(self, node)
-    local _, delim, inner, delim_end = unpack(node)
-    return delim .. inner .. (delim_end or delim)
-  end,
-  with = function(self, node)
-    do
-      local _with_0 = self:block("(function()", "end)()")
-      _with_0:stm(node, default_return)
-      return _with_0
-    end
-  end,
-  ["if"] = function(self, node)
-    do
-      local _with_0 = self:block("(function()", "end)()")
-      _with_0:stm(node, default_return)
-      return _with_0
-    end
-  end,
-  comprehension = function(self, node)
-    local _, exp, iter = unpack(node)
-    do
-      local _with_0 = self:block()
-      local tmp_name = _with_0:init_free_var("accum", {
-        "table"
-      })
-      local len_name = _with_0:init_free_var("len", 0)
-      local action
-      action = function(value)
-        return table_append(tmp_name, len_name, value)
-      end
-      _with_0:stm(node, action)
-      _with_0:stm({
-        "return",
-        tmp_name
-      })
-      if _with_0.has_varargs then
-        _with_0.header, _with_0.footer = "(function(...)", "end)(...)"
-      else
-        _with_0.header, _with_0.footer = "(function()", "end)()"
-      end
-      return _with_0
-    end
+    local _, delim, inner = unpack(node)
+    local end_delim = delim:gsub("%[", "]")
+    return delim .. inner .. end_delim
   end,
   chain = function(self, node)
     local callee = node[2]
@@ -150,7 +79,7 @@ value_compile = {
       elseif t == "index" then
         return "[", self:value(arg), "]"
       elseif t == "dot" then
-        return ".", arg
+        return ".", tostring(arg)
       elseif t == "colon" then
         return ":", arg, chain_item(node[3])
       elseif t == "colon_stub" then
@@ -159,8 +88,9 @@ value_compile = {
         return error("Unknown chain action: " .. t)
       end
     end
-    if ntype(callee) == "self" and node[3] and ntype(node[3]) == "call" then
-      callee[1] = "self_colon"
+    local t = ntype(callee)
+    if (t == "self" or t == "self_class") and node[3] and ntype(node[3]) == "call" then
+      callee[1] = t .. "_colon"
     end
     local callee_value = self:value(callee)
     if ntype(callee) == "exp" then
@@ -169,12 +99,10 @@ value_compile = {
     local actions
     do
       local _with_0 = self:line()
-      do
-        local _item_0 = node
-        for _index_0 = 3, #_item_0 do
-          local action = _item_0[_index_0]
-          _with_0:append(chain_item(action))
-        end
+      local _list_0 = node
+      for _index_0 = 3, #_list_0 do
+        local action = _list_0[_index_0]
+        _with_0:append(chain_item(action))
       end
       actions = _with_0
     end
@@ -187,27 +115,25 @@ value_compile = {
     local arg_names = (function()
       local _accum_0 = { }
       local _len_0 = 0
-      do
-        local _item_0 = args
-        for _index_0 = 1, #_item_0 do
-          local arg = _item_0[_index_0]
-          local name, default_value = unpack(arg)
-          if type(name) == "string" then
-            name = name
-          else
-            if name[1] == "self" then
-              insert(self_args, name)
-            end
-            name = name[2]
+      local _list_0 = args
+      for _index_0 = 1, #_list_0 do
+        local arg = _list_0[_index_0]
+        local name, default_value = unpack(arg)
+        if type(name) == "string" then
+          name = name
+        else
+          if name[1] == "self" or name[1] == "self_class" then
+            insert(self_args, name)
           end
-          if default_value then
-            insert(default_args, arg)
-          end
-          local _value_0 = name
-          if _value_0 ~= nil then
-            _len_0 = _len_0 + 1
-            _accum_0[_len_0] = _value_0
-          end
+          name = name[2]
+        end
+        if default_value then
+          insert(default_args, arg)
+        end
+        local _value_0 = name
+        if _value_0 ~= nil then
+          _len_0 = _len_0 + 1
+          _accum_0[_len_0] = _value_0
         end
       end
       return _accum_0
@@ -220,53 +146,47 @@ value_compile = {
       if #whitelist > 0 then
         _with_0:whitelist_names(whitelist)
       end
-      do
-        local _item_0 = arg_names
-        for _index_0 = 1, #_item_0 do
-          local name = _item_0[_index_0]
-          _with_0:put_name(name)
-        end
+      local _list_0 = arg_names
+      for _index_0 = 1, #_list_0 do
+        local name = _list_0[_index_0]
+        _with_0:put_name(name)
       end
-      do
-        local _item_0 = default_args
-        for _index_0 = 1, #_item_0 do
-          local default = _item_0[_index_0]
-          local name, value = unpack(default)
-          if type(name) == "table" then
-            name = name[2]
-          end
-          _with_0:stm({
-            'if',
+      local _list_1 = default_args
+      for _index_0 = 1, #_list_1 do
+        local default = _list_1[_index_0]
+        local name, value = unpack(default)
+        if type(name) == "table" then
+          name = name[2]
+        end
+        _with_0:stm({
+          'if',
+          {
+            'exp',
+            name,
+            '==',
+            'nil'
+          },
+          {
             {
-              'exp',
-              name,
-              '==',
-              'nil'
-            },
-            {
+              'assign',
               {
-                'assign',
-                {
-                  name
-                },
-                {
-                  value
-                }
+                name
+              },
+              {
+                value
               }
             }
-          })
-        end
+          }
+        })
       end
       local self_arg_values = (function()
         local _accum_0 = { }
         local _len_0 = 0
-        do
-          local _item_0 = self_args
-          for _index_0 = 1, #_item_0 do
-            local arg = _item_0[_index_0]
-            _len_0 = _len_0 + 1
-            _accum_0[_len_0] = arg[2]
-          end
+        local _list_2 = self_args
+        for _index_0 = 1, #_list_2 do
+          local arg = _list_2[_index_0]
+          _len_0 = _len_0 + 1
+          _accum_0[_len_0] = arg[2]
         end
         return _accum_0
       end)()
@@ -277,20 +197,18 @@ value_compile = {
           self_arg_values
         })
       end
-      _with_0:ret_stms(block)
+      _with_0:stms(block)
       if #args > #arg_names then
         arg_names = (function()
           local _accum_0 = { }
           local _len_0 = 0
-          do
-            local _item_0 = args
-            for _index_0 = 1, #_item_0 do
-              local arg = _item_0[_index_0]
-              local _value_0 = arg[1]
-              if _value_0 ~= nil then
-                _len_0 = _len_0 + 1
-                _accum_0[_len_0] = _value_0
-              end
+          local _list_2 = args
+          for _index_0 = 1, #_list_2 do
+            local arg = _list_2[_index_0]
+            local _value_0 = arg[1]
+            if _value_0 ~= nil then
+              _len_0 = _len_0 + 1
+              _accum_0[_len_0] = _value_0
             end
           end
           return _accum_0
@@ -304,23 +222,22 @@ value_compile = {
     local _, items = unpack(node)
     do
       local _with_0 = self:block("{", "}")
-      _with_0.delim = ","
       local format_line
       format_line = function(tuple)
         if #tuple == 2 then
           local key, value = unpack(tuple)
-          if type(key) == "string" and data.lua_keywords[key] then
+          if ntype(key) == "key_literal" and data.lua_keywords[key[2]] then
             key = {
               "string",
               '"',
-              key
+              key[2]
             }
           end
           local assign
-          if type(key) ~= "string" then
-            assign = self:line("[", _with_0:value(key), "]")
+          if ntype(key) == "key_literal" then
+            assign = key[2]
           else
-            assign = key
+            assign = self:line("[", _with_0:value(key), "]")
           end
           _with_0:set("current_block", key)
           local out = self:line(assign, " = ", _with_0:value(value))
@@ -331,12 +248,13 @@ value_compile = {
         end
       end
       if items then
-        do
-          local _item_0 = items
-          for _index_0 = 1, #_item_0 do
-            local line = _item_0[_index_0]
-            _with_0:add(format_line(line))
+        local count = #items
+        for i, tuple in ipairs(items) do
+          local line = format_line(tuple)
+          if not (count == i) then
+            line:append(table_delim)
           end
+          _with_0:add(line)
         end
       end
       return _with_0
@@ -360,12 +278,22 @@ value_compile = {
   self = function(self, node)
     return "self." .. self:value(node[2])
   end,
+  self_class = function(self, node)
+    return "self.__class." .. self:value(node[2])
+  end,
   self_colon = function(self, node)
     return "self:" .. self:value(node[2])
   end,
+  self_class_colon = function(self, node)
+    return "self.__class:" .. self:value(node[2])
+  end,
   raw_value = function(self, value)
+    local sup = self:get("super")
+    if value == "super" and sup then
+      return self:value(sup(self))
+    end
     if value == "..." then
-      self.has_varargs = true
+      self:send("varargs")
     end
     return tostring(value)
   end
