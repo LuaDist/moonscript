@@ -26,8 +26,8 @@ install_lua_module ( moonscript.version moonscript/version.lua )
 install_lua_module ( moon moon/init.lua )
 install_lua_module ( moon.all moon/all.lua )
 
-install_lua_executable ( moon moon )
-install_lua_executable ( moonc moonc )
+install_lua_executable ( moon bin/moon )
+install_lua_executable ( moonc bin/moonc )
 
 install_data ( README.md )
 install_doc ( docs/ )
