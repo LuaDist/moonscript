@@ -1,0 +1,98 @@
+type = "x86"
+arch = "Windows"
+author = "Leaf Corcoran <leafot@gmail.com>"
+depends = {
+[[lua ~> 5.1]],
+[[lpeg >= 0.10]],
+[[alt-getopt >= 0.7]],
+[[luafilesystem >= 1.5]],
+}
+
+desc = "A little language that compiles to Lua"
+version = "0.2.2"
+maintainer = "Peter Drahoš"
+files = {
+Runtime = {
+[[lib\lua\moonscript.lua]],
+[[lib\lua\moonscript\compile.lua]],
+[[lib\lua\moonscript\compile\statement.lua]],
+[[lib\lua\moonscript\compile\value.lua]],
+[[lib\lua\moonscript\compile\format.lua]],
+[[lib\lua\moonscript\transform.lua]],
+[[lib\lua\moonscript\types.lua]],
+[[lib\lua\moonscript\parse.lua]],
+[[lib\lua\moonscript\dump.lua]],
+[[lib\lua\moonscript\data.lua]],
+[[lib\lua\moonscript\util.lua]],
+[[lib\lua\moonscript\errors.lua]],
+[[lib\lua\moonscript\version.lua]],
+[[lib\lua\moon.lua]],
+[[lib\lua\moon\all.lua]],
+[[bin\moon]],
+[[bin\moonc]],
+}
+,
+Documentation = {
+[[share\moonscript\doc\\reference.md]],
+[[share\moonscript\doc\\reference_manual.html]],
+[[share\moonscript\doc\\standard_lib.html]],
+[[share\moonscript\doc\\standard_lib.md]],
+}
+,
+Data = {
+[[share\moonscript\README.md]],
+}
+,
+Test = {
+[[share\moonscript\test\\error_inputs\first.moon]],
+[[share\moonscript\test\\error_inputs\second.moon]],
+[[share\moonscript\test\\error_inputs\third.moon]],
+[[share\moonscript\test\\inputs\assign.moon]],
+[[share\moonscript\test\\inputs\bubbling.moon]],
+[[share\moonscript\test\\inputs\class.moon]],
+[[share\moonscript\test\\inputs\comprehension.moon]],
+[[share\moonscript\test\\inputs\cond.moon]],
+[[share\moonscript\test\\inputs\do.moon]],
+[[share\moonscript\test\\inputs\export.moon]],
+[[share\moonscript\test\\inputs\funcs.moon]],
+[[share\moonscript\test\\inputs\import.moon]],
+[[share\moonscript\test\\inputs\lists.moon]],
+[[share\moonscript\test\\inputs\literals.moon]],
+[[share\moonscript\test\\inputs\local.moon]],
+[[share\moonscript\test\\inputs\loops.moon]],
+[[share\moonscript\test\\inputs\string.moon]],
+[[share\moonscript\test\\inputs\stub.moon]],
+[[share\moonscript\test\\inputs\switch.moon]],
+[[share\moonscript\test\\inputs\syntax.moon]],
+[[share\moonscript\test\\inputs\tables.moon]],
+[[share\moonscript\test\\inputs\using.moon]],
+[[share\moonscript\test\\inputs\whitespace.moon]],
+[[share\moonscript\test\\inputs\with.moon]],
+[[share\moonscript\test\\outputs\assign.lua]],
+[[share\moonscript\test\\outputs\bubbling.lua]],
+[[share\moonscript\test\\outputs\class.lua]],
+[[share\moonscript\test\\outputs\comprehension.lua]],
+[[share\moonscript\test\\outputs\cond.lua]],
+[[share\moonscript\test\\outputs\do.lua]],
+[[share\moonscript\test\\outputs\export.lua]],
+[[share\moonscript\test\\outputs\funcs.lua]],
+[[share\moonscript\test\\outputs\import.lua]],
+[[share\moonscript\test\\outputs\lists.lua]],
+[[share\moonscript\test\\outputs\literals.lua]],
+[[share\moonscript\test\\outputs\local.lua]],
+[[share\moonscript\test\\outputs\loops.lua]],
+[[share\moonscript\test\\outputs\string.lua]],
+[[share\moonscript\test\\outputs\stub.lua]],
+[[share\moonscript\test\\outputs\switch.lua]],
+[[share\moonscript\test\\outputs\syntax.lua]],
+[[share\moonscript\test\\outputs\tables.lua]],
+[[share\moonscript\test\\outputs\using.lua]],
+[[share\moonscript\test\\outputs\whitespace.lua]],
+[[share\moonscript\test\\outputs\with.lua]],
+}
+,
+}
+
+url = "http://leafo.net/moonscript"
+name = "moonscript"
+license = "MIT"
